@@ -8,8 +8,7 @@ _INSTRUCTION = (Path(__file__).parent / 'terms_agent.md').read_text(encoding='ut
 terms_agent = Agent(
     model='gemini-2.5-flash',
     name='terms_agent',
-    description='A sub-agent for searching website terms & conditions.',
+    description='A sub-agent for searching website terms & conditions and short analysis.',
     instruction=_INSTRUCTION,
     tools=[google_search],
-    # output_key='terms_url',
 )

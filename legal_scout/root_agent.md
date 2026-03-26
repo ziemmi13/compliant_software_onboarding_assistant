@@ -6,8 +6,8 @@ Trigger: user will provide a URL of a tool.
 Action:
 
 1. Call `find_terms_from_homepage` tool to fetch the possible URLs for T&C
-2. Call `terms_search_agent` to discover the T&C.
-3. Return the raw output from `terms_search_agent`
+2. Call `terms_search_agent` to discover the T&C based on the ulrs from 1. and get the analysis.
+3. Return the Analysis from `terms_search_agent`
 
 ## Rules
 
