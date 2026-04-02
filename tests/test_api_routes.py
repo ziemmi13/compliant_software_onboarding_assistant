@@ -6,7 +6,10 @@ from fastapi.testclient import TestClient
 
 from api.main import app
 from api.services.analysis_service import AgentAnalysisResult
+from api.services.dpa_analysis_service import DpaAnalysisResult
 from api.schemas import ClauseHighlight
+from api.schemas import DpaChecklistItem
+from api.schemas import DpaChecklistStatus
 from api.schemas import RiskLevel
 
 
@@ -70,6 +73,39 @@ class ApiRouteTests(unittest.TestCase):
     def test_analyze_endpoint_rejects_invalid_scheme(self) -> None:
         response = self.client.post("/api/analyze", json={"url": "ftp://example.com"})
         self.assertEqual(response.status_code, 422)
+
+    def test_analyze_dpa_endpoint_success(self) -> None:
+        mock_result = DpaAnalysisResult(
+            summary="Solid DPA baseline.",
+            checklist=[
+                DpaChecklistItem(
+                    requirement_key="breach_notification",
+                    requirement_title="Breach notification timing",
+                    status=DpaChecklistStatus.SATISFIED,
+                    rationale="The DPA requires notice within 36 hours.",
+                    source_url="https://example.com/legal/data-processing-agreement",
+                )
+            ],
+            raw_analysis='{"summary":"Solid DPA baseline.","checklist":[{"requirement_key":"breach_notification","requirement_title":"Breach notification timing","status":"satisfied","rationale":"The DPA requires notice within 36 hours.","source_url":"https://example.com/legal/data-processing-agreement"}]}',
+            source_links=["https://example.com/legal/data-processing-agreement"],
+            blocked_links=[],
+        )
+
+        with patch("api.main.run_dpa_analysis", new=AsyncMock(return_value=mock_result)):
+            response = self.client.post(
+                "/api/analyze-dpa",
+                json={
+                    "url": "https://example.com/legal/data-processing-agreement",
+                    "company_context": "Law firm reviewing processor obligations for client data.",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["summary"], "Solid DPA baseline.")
+        self.assertEqual(len(payload["checklist"]), 1)
+        self.assertEqual(payload["checklist"][0]["status"], "satisfied")
+        self.assertEqual(payload["checklist"][0]["source_url"], "https://example.com/legal/data-processing-agreement")
 
 
 if __name__ == "__main__":

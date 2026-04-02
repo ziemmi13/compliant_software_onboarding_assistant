@@ -1,6 +1,9 @@
 import { FormEvent, useEffect, useState } from "react";
 
-import { AnalyzeResponse, analyzeUrl } from "./api";
+import { AnalyzeResponse, DpaAnalyzeResponse, DpaChecklistItem, analyzeDpaUrl, analyzeUrl } from "./api";
+
+type AnalysisType = "terms" | "dpa";
+type AnalysisResult = AnalyzeResponse | DpaAnalyzeResponse;
 
 const CONTEXT_PRESETS = [
   {
@@ -50,13 +53,32 @@ function countHighlightsByRisk(result: AnalyzeResponse) {
   );
 }
 
+function countChecklistByStatus(result: DpaAnalyzeResponse) {
+  return result.checklist.reduce(
+    (counts, item) => {
+      counts[item.status] += 1;
+      return counts;
+    },
+    { missing: 0, partial: 0, unclear: 0, satisfied: 0 }
+  );
+}
+
+function isDpaResult(result: AnalysisResult | null): result is DpaAnalyzeResponse {
+  return Boolean(result && "checklist" in result);
+}
+
+function getChecklistStatusLabel(item: DpaChecklistItem) {
+  return item.status.replace("_", " ");
+}
+
 export default function App() {
+  const [analysisType, setAnalysisType] = useState<AnalysisType>("terms");
   const [url, setUrl] = useState("");
   const [companyContext, setCompanyContext] = useState("");
   const [loading, setLoading] = useState(false);
   const [loadingStageIndex, setLoadingStageIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<AnalyzeResponse | null>(null);
+  const [result, setResult] = useState<AnalysisResult | null>(null);
 
   useEffect(() => {
     if (!loading) {
@@ -84,7 +106,10 @@ export default function App() {
     setResult(null);
 
     try {
-      const analysis = await analyzeUrl(url.trim(), companyContext);
+      const analysis =
+        analysisType === "dpa"
+          ? await analyzeDpaUrl(url.trim(), companyContext)
+          : await analyzeUrl(url.trim(), companyContext);
       setResult(analysis);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error.");
@@ -97,6 +122,12 @@ export default function App() {
     setCompanyContext(value);
   };
 
+  const changeAnalysisType = (nextType: AnalysisType) => {
+    setAnalysisType(nextType);
+    setError(null);
+    setResult(null);
+  };
+
   const currentLoadingStage = LOADING_STAGES[loadingStageIndex];
   const loadingProgress = ((loadingStageIndex + 1) / LOADING_STAGES.length) * 100;
   const targetHost = (() => {
@@ -106,9 +137,17 @@ export default function App() {
       return null;
     }
   })();
-  const reviewModeTitle = targetHost ? `Reviewing ${targetHost}` : "Reviewing your submission";
+  const reviewModeTitle =
+    targetHost
+      ? analysisType === "dpa"
+        ? `Reviewing DPA for ${targetHost}`
+        : `Reviewing ${targetHost}`
+      : analysisType === "dpa"
+        ? "Reviewing your DPA submission"
+        : "Reviewing your submission";
 
-  const riskCounts = result ? countHighlightsByRisk(result) : null;
+  const riskCounts = result && !isDpaResult(result) ? countHighlightsByRisk(result) : null;
+  const checklistCounts = result && isDpaResult(result) ? countChecklistByStatus(result) : null;
   const coverageLabel = result
     ? result.blocked_links.length > 0
       ? result.source_links.length > 0
@@ -152,7 +191,9 @@ export default function App() {
               </div>
               <h1 className="review-mode-heading">{reviewModeTitle}</h1>
               <p className="review-mode-body">
-                COMPL.AI is running a focused legal intake pass before generating the final summary and ranked highlights.
+                {analysisType === "dpa"
+                  ? "COMPL.AI is reviewing the DPA package and linked annexes before generating an Article 28 checklist."
+                  : "COMPL.AI is running a focused legal intake pass before generating the final summary and ranked highlights."}
               </p>
 
               <div className="review-mode-notes">
@@ -162,7 +203,11 @@ export default function App() {
                 </article>
                 <article className="review-mode-note">
                   <strong>Output</strong>
-                  <p>Preparing a concise summary and issue list for business review.</p>
+                  <p>
+                    {analysisType === "dpa"
+                      ? "Preparing a structured Article 28 checklist with cited privacy control findings."
+                      : "Preparing a concise summary and issue list for business review."}
+                  </p>
                 </article>
                 <article className="review-mode-note">
                   <strong>Priority</strong>
@@ -220,9 +265,11 @@ export default function App() {
           <>
             <header className="hero">
               <div className="hero-copy">
-                <h1>Compliant Software Onboarding</h1>
+                <h1>{analysisType === "dpa" ? "Data Processing Agreement Review" : "Compliant Software Onboarding"}</h1>
                 <p className="hero-body">
-                  Screen any software in minutes, not hours.
+                  {analysisType === "dpa"
+                    ? "Review a vendor DPA against Article 28-style processor obligations in minutes."
+                    : "Screen any software in minutes, not hours."}
                 </p>
               </div>
             </header>
@@ -235,8 +282,25 @@ export default function App() {
                   </div>
                 </div>
 
+                <div className="analysis-type-switch" role="tablist" aria-label="Review type">
+                  <button
+                    type="button"
+                    className={analysisType === "terms" ? "analysis-type-pill analysis-type-pill-active" : "analysis-type-pill"}
+                    onClick={() => changeAnalysisType("terms")}
+                  >
+                    T&amp;C Review
+                  </button>
+                  <button
+                    type="button"
+                    className={analysisType === "dpa" ? "analysis-type-pill analysis-type-pill-active" : "analysis-type-pill"}
+                    onClick={() => changeAnalysisType("dpa")}
+                  >
+                    DPA Review
+                  </button>
+                </div>
+
                 <form onSubmit={onSubmit} className="form">
-                  <label htmlFor="url">Website URL</label>
+                  <label htmlFor="url">{analysisType === "dpa" ? "Website or DPA URL" : "Website URL"}</label>
                   <div className="row">
                     <input
                       id="url"
@@ -279,7 +343,9 @@ export default function App() {
                 {!result && !error && (
                   <div className="inline-note">
                     <p>
-                      Enter a target URL and optional company context to generate a concise compliance brief with ranked contractual risks.
+                      {analysisType === "dpa"
+                        ? "Enter a DPA URL or vendor website and optional company context to generate an Article 28 checklist with linked evidence."
+                        : "Enter a target URL and optional company context to generate a concise compliance brief with ranked contractual risks."}
                     </p>
                   </div>
                 )}
@@ -298,7 +364,15 @@ export default function App() {
                 <h2>{result.normalized_domain}</h2>
               </div>
               <div className="topbar-metrics compact-metrics">
-                <span className="topbar-pill topbar-pill-high">High {riskCounts?.high ?? 0}</span>
+                {!isDpaResult(result) ? (
+                  <span className="topbar-pill topbar-pill-high">High {riskCounts?.high ?? 0}</span>
+                ) : (
+                  <>
+                    <span className="topbar-pill topbar-pill-high">Missing {checklistCounts?.missing ?? 0}</span>
+                    <span className="topbar-pill">Partial {checklistCounts?.partial ?? 0}</span>
+                    <span className="topbar-pill">Satisfied {checklistCounts?.satisfied ?? 0}</span>
+                  </>
+                )}
                 <span className="topbar-pill">Coverage {coverageLabel}</span>
                 <span className="topbar-pill">Sources {result.source_links.length}</span>
                 {result.blocked_links.length > 0 && <span className="topbar-pill">Blocked {result.blocked_links.length}</span>}
@@ -308,16 +382,16 @@ export default function App() {
             <div className="results-primary">
               <article className="card summary-card narrative-card">
                 <div className="card-header">
-                  <h2>T&amp;C Summary</h2>
+                  <h2>{isDpaResult(result) ? "DPA Summary" : "T&C Summary"}</h2>
                 </div>
                 <p className="summary-copy">{result.summary}</p>
               </article>
 
               <article className="card highlights-card narrative-card">
                 <div className="card-header">
-                  <h2>Key Highlights</h2>
+                  <h2>{isDpaResult(result) ? "Article 28 Checklist" : "Key Highlights"}</h2>
                 </div>
-                {result.highlights.length === 0 ? (
+                {!isDpaResult(result) ? result.highlights.length === 0 ? (
                   <p>No highlights were extracted.</p>
                 ) : (
                   <ul className="highlights editorial-highlights">
@@ -326,6 +400,28 @@ export default function App() {
                         <div className="title-row">
                           <strong>{item.title}</strong>
                           <span className={`risk risk-${item.risk_level}`}>{item.risk_level}</span>
+                        </div>
+                        <p>{item.rationale}</p>
+                        {item.source_url && (
+                          <p className="highlight-source">
+                            Source:{" "}
+                            <a href={item.source_url} target="_blank" rel="noreferrer">
+                              {item.source_url}
+                            </a>
+                          </p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                ) : result.checklist.length === 0 ? (
+                  <p>No checklist items were extracted.</p>
+                ) : (
+                  <ul className="highlights editorial-highlights dpa-checklist">
+                    {result.checklist.map((item) => (
+                      <li key={item.requirement_key} className={`highlight-card dpa-checklist-item dpa-checklist-item-${item.status}`}>
+                        <div className="title-row">
+                          <strong>{item.requirement_title}</strong>
+                          <span className={`check-status check-status-${item.status}`}>{getChecklistStatusLabel(item)}</span>
                         </div>
                         <p>{item.rationale}</p>
                         {item.source_url && (

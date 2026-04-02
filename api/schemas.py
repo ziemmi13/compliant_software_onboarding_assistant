@@ -14,6 +14,13 @@ class RiskLevel(str, Enum):
     UNKNOWN = "unknown"
 
 
+class DpaChecklistStatus(str, Enum):
+    MISSING = "missing"
+    PARTIAL = "partial"
+    UNCLEAR = "unclear"
+    SATISFIED = "satisfied"
+
+
 class AnalyzeRequest(BaseModel):
     url: AnyHttpUrl
     company_context: str | None = Field(default=None, max_length=2000)
@@ -26,11 +33,30 @@ class ClauseHighlight(BaseModel):
     source_url: str | None = None
 
 
+class DpaChecklistItem(BaseModel):
+    requirement_key: str = Field(min_length=1)
+    requirement_title: str = Field(min_length=1)
+    status: DpaChecklistStatus = DpaChecklistStatus.UNCLEAR
+    rationale: str = Field(min_length=1)
+    source_url: str | None = None
+
+
 class AnalyzeResponse(BaseModel):
     input_url: str
     normalized_domain: str
     summary: str
     highlights: list[ClauseHighlight] = Field(default_factory=list)
+    source_links: list[str] = Field(default_factory=list)
+    blocked_links: list[str] = Field(default_factory=list)
+    confidence_notes: list[str] = Field(default_factory=list)
+    raw_analysis: str
+
+
+class DpaAnalyzeResponse(BaseModel):
+    input_url: str
+    normalized_domain: str
+    summary: str
+    checklist: list[DpaChecklistItem] = Field(default_factory=list)
     source_links: list[str] = Field(default_factory=list)
     blocked_links: list[str] = Field(default_factory=list)
     confidence_notes: list[str] = Field(default_factory=list)

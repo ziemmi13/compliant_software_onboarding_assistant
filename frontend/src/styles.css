@@ -261,6 +261,38 @@ body {
   color: #6a5a3c;
 }
 
+.analysis-type-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-bottom: 1rem;
+}
+
+.analysis-type-pill {
+  padding: 0.72rem 0.95rem;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 33, 71, 0.12);
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--navy);
+  font-size: 0.82rem;
+  font-weight: 700;
+  box-shadow: none;
+}
+
+.analysis-type-pill:hover:not(:disabled) {
+  background: rgba(0, 33, 71, 0.06);
+  color: var(--navy-soft);
+  box-shadow: none;
+  transform: translateY(-1px);
+  filter: none;
+}
+
+.analysis-type-pill-active {
+  border-color: rgba(0, 33, 71, 0.2);
+  background: rgba(0, 33, 71, 0.08);
+  color: var(--navy);
+}
+
 .form {
   display: grid;
   row-gap: 0.95rem;
@@ -775,6 +807,58 @@ button:disabled {
 
 .highlight-source a {
   word-break: break-word;
+}
+
+.dpa-checklist {
+  gap: 0.95rem;
+}
+
+.dpa-checklist-item-missing {
+  border-color: rgba(158, 43, 37, 0.18);
+  background: #fff7f6;
+}
+
+.dpa-checklist-item-partial {
+  border-color: rgba(199, 130, 63, 0.2);
+  background: #fffaf1;
+}
+
+.dpa-checklist-item-unclear {
+  border-color: rgba(68, 84, 91, 0.14);
+  background: #fafbfc;
+}
+
+.dpa-checklist-item-satisfied {
+  border-color: rgba(34, 98, 29, 0.18);
+  background: #f7fcf6;
+}
+
+.check-status {
+  padding: 0.22rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.check-status-missing {
+  background: #ffe3de;
+  color: #81211a;
+}
+
+.check-status-partial {
+  background: #fff0d1;
+  color: #855900;
+}
+
+.check-status-unclear {
+  background: #edf0f2;
+  color: #44545b;
+}
+
+.check-status-satisfied {
+  background: #e4f7df;
+  color: #22621d;
 }
 
 .risk {
