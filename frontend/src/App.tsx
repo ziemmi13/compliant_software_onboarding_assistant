@@ -100,6 +100,26 @@ export default function App() {
       <div className="page-orb page-orb-left" />
       <div className="page-orb page-orb-right" />
       <main className="page">
+        <header className="topbar">
+          <div className="brand-lockup" aria-label="COMPL.AI">
+            <img className="topbar-logo" src="/comp_ai-logo.png" alt="Comp AI" />
+          </div>
+          <nav className="top-tabs" aria-label="Primary">
+            <button type="button" className="top-tab top-tab-active">
+              Overview
+            </button>
+            <button type="button" className="top-tab">
+              Reviews
+            </button>
+            <button type="button" className="top-tab">
+              Policies
+            </button>
+            <button type="button" className="top-tab">
+              Settings
+            </button>
+          </nav>
+        </header>
+
         <header className="hero">
           <div className="hero-copy">
             <h1>Compliant Software Onboarding</h1>
