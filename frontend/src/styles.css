@@ -1,0 +1,154 @@
+:root {
+  --ink: #102025;
+  --muted: #486068;
+  --sky: #b6d9d7;
+  --sea: #0c5c6b;
+  --foam: #f4fbfa;
+  --warm: #ffd6a5;
+  --danger: #9e2b25;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  color: var(--ink);
+  font-family: "Source Sans 3", "Segoe UI", sans-serif;
+  background: radial-gradient(circle at 0% 0%, #d7f0ec 0%, #f4fbfa 55%, #e8f4f7 100%);
+}
+
+.page {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 2rem 1rem 4rem;
+}
+
+.hero h1 {
+  font-family: "Bitter", Georgia, serif;
+  font-size: clamp(1.8rem, 3.5vw, 2.8rem);
+  margin: 0.2rem 0 0.8rem;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--sea);
+  margin: 0;
+}
+
+.panel,
+.card {
+  background: white;
+  border: 1px solid #d5e4e3;
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(12, 92, 107, 0.08);
+}
+
+.panel {
+  margin-top: 1.5rem;
+  padding: 1.2rem;
+}
+
+.form label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.row {
+  display: flex;
+  gap: 0.75rem;
+}
+
+input {
+  flex: 1;
+  border: 1px solid #bfd7d5;
+  border-radius: 10px;
+  padding: 0.75rem 0.9rem;
+  font: inherit;
+}
+
+button {
+  border: 0;
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  color: white;
+  font-weight: 700;
+  background: var(--sea);
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.error {
+  color: var(--danger);
+  margin-top: 0.8rem;
+}
+
+.results {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.card {
+  padding: 1rem 1.2rem;
+}
+
+.highlights {
+  display: grid;
+  gap: 0.9rem;
+  padding-left: 1rem;
+}
+
+.title-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+}
+
+.risk {
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+
+.risk-high {
+  background: #ffe3de;
+  color: #81211a;
+}
+
+.risk-medium {
+  background: #fff0d1;
+  color: #855900;
+}
+
+.risk-low {
+  background: #e4f7df;
+  color: #22621d;
+}
+
+.risk-unknown {
+  background: #edf0f2;
+  color: #44545b;
+}
+
+a {
+  color: var(--sea);
+}
+
+@media (max-width: 640px) {
+  .row {
+    flex-direction: column;
+  }
+
+  button {
+    width: 100%;
+  }
+}
