@@ -110,8 +110,4 @@ def build_confidence_notes(raw_analysis: str, blocked_links: list[str]) -> list[
             "Some candidate legal pages returned blocked responses and could not be fetched directly."
         )
 
-    lowered = raw_analysis.lower()
-    if any(token in lowered for token in ("could not access", "not found", "unable to verify")):
-        notes.append("The analysis indicates parts of the policy discovery may be incomplete.")
-
     return notes

@@ -328,6 +328,14 @@ export default function App() {
                           <span className={`risk risk-${item.risk_level}`}>{item.risk_level}</span>
                         </div>
                         <p>{item.rationale}</p>
+                        {item.source_url && (
+                          <p className="highlight-source">
+                            Source:{" "}
+                            <a href={item.source_url} target="_blank" rel="noreferrer">
+                              {item.source_url}
+                            </a>
+                          </p>
+                        )}
                       </li>
                     ))}
                   </ul>

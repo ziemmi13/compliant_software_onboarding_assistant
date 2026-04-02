@@ -3,6 +3,7 @@ import unittest
 from api.services.analysis_service import build_analysis_prompt
 from api.services.analysis_service import parse_structured_analysis
 from api.services.analysis_service import sort_highlights_by_severity
+from api.services.analysis_service import validate_highlight_sources
 from api.services.analysis_service import validate_input_url
 from api.schemas import ClauseHighlight
 from api.schemas import RiskLevel
@@ -34,29 +35,51 @@ class BuildAnalysisPromptTests(unittest.TestCase):
     def test_includes_company_context_when_provided(self) -> None:
         prompt = build_analysis_prompt(
             "https://example.com",
+            ["https://example.com/terms"],
             "B2B SaaS handling employee personal data.",
         )
         self.assertIn("Company context:", prompt)
         self.assertIn("B2B SaaS handling employee personal data.", prompt)
 
     def test_omits_company_context_section_when_missing(self) -> None:
-        prompt = build_analysis_prompt("https://example.com")
+        prompt = build_analysis_prompt("https://example.com", ["https://example.com/terms"])
         self.assertNotIn("Company context:", prompt)
 
     def test_requires_json_only_output(self) -> None:
-        prompt = build_analysis_prompt("https://example.com")
+        prompt = build_analysis_prompt("https://example.com", ["https://example.com/terms"])
         self.assertIn("Return only a valid JSON object.", prompt)
         self.assertIn('"summary"', prompt)
         self.assertIn('"highlights"', prompt)
+
+    def test_requests_source_url_for_highlights(self) -> None:
+        prompt = build_analysis_prompt("https://example.com", ["https://example.com/terms"])
+        self.assertIn('"source_url"', prompt)
+        self.assertIn("chosen only from the discovered source pages", prompt)
+
+    def test_includes_discovered_source_allowlist(self) -> None:
+        prompt = build_analysis_prompt(
+            "https://example.com",
+            ["https://example.com/terms", "https://example.com/privacy"],
+        )
+        self.assertIn("Discovered source pages:", prompt)
+        self.assertIn("https://example.com/terms", prompt)
+        self.assertIn("https://example.com/privacy", prompt)
+        self.assertIn("Do not invent, rewrite, or infer any other URL.", prompt)
+
+    def test_requires_null_citations_when_no_discovered_sources(self) -> None:
+        prompt = build_analysis_prompt("https://example.com", [])
+        self.assertIn("No discovered source pages were confirmed.", prompt)
+        self.assertIn("Set source_url to null for every highlight.", prompt)
 
 
 class ParseStructuredAnalysisTests(unittest.TestCase):
     def test_parses_structured_json(self) -> None:
         result = parse_structured_analysis(
-            '{"summary":"A concise summary.","highlights":[{"title":"Liability","rationale":"Cap on damages.","risk_level":"high"}]}'
+            '{"summary":"A concise summary.","highlights":[{"title":"Liability","rationale":"Cap on damages.","risk_level":"high","source_url":"https://example.com/terms"}]}'
         )
         self.assertEqual(result.summary, "A concise summary.")
         self.assertEqual(len(result.highlights), 1)
+        self.assertEqual(result.highlights[0].source_url, "https://example.com/terms")
 
     def test_parses_json_wrapped_in_code_fence(self) -> None:
         result = parse_structured_analysis(
@@ -93,6 +116,39 @@ class SortHighlightsBySeverityTests(unittest.TestCase):
             [highlight.risk_level for highlight in sorted_highlights],
             [RiskLevel.HIGH, RiskLevel.MEDIUM, RiskLevel.LOW, RiskLevel.UNKNOWN],
         )
+
+
+class ValidateHighlightSourcesTests(unittest.TestCase):
+    def test_preserves_verified_citation(self) -> None:
+        highlights = [
+            ClauseHighlight(
+                title="Liability",
+                rationale="Cap on damages.",
+                risk_level=RiskLevel.HIGH,
+                source_url="https://example.com/terms",
+            )
+        ]
+
+        validated, notes = validate_highlight_sources(highlights, ["https://example.com/terms"])
+
+        self.assertEqual(validated[0].source_url, "https://example.com/terms")
+        self.assertEqual(notes, [])
+
+    def test_nulls_unverified_citation_and_adds_note(self) -> None:
+        highlights = [
+            ClauseHighlight(
+                title="Privacy",
+                rationale="Broad data use rights.",
+                risk_level=RiskLevel.MEDIUM,
+                source_url="https://example.com/privacy",
+            )
+        ]
+
+        validated, notes = validate_highlight_sources(highlights, ["https://example.com/terms"])
+
+        self.assertIsNone(validated[0].source_url)
+        self.assertEqual(len(notes), 1)
+        self.assertIn("could not be verified", notes[0])
 
 
 if __name__ == "__main__":

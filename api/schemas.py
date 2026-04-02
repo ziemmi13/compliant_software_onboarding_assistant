@@ -23,6 +23,7 @@ class ClauseHighlight(BaseModel):
     title: str = Field(min_length=1)
     rationale: str = Field(min_length=1)
     risk_level: RiskLevel = RiskLevel.UNKNOWN
+    source_url: str | None = None
 
 
 class AnalyzeResponse(BaseModel):

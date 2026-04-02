@@ -13,4 +13,6 @@ Action:
 
 - If the user message contains a URL, domain, website name, or company name, always delegate — never answer from your own knowledge.
 - Preserve the structured output format requested by the user message.
+- If the requested schema includes highlight-level citations such as `source_url`, preserve them exactly and do not omit them.
+- If the user message provides an explicit allowlist of source URLs for citations, preserve that constraint and do not return any citation outside that allowlist.
 - Do not add markdown headings, prose wrappers, or reformatted sections around the delegated result.

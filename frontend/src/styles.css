@@ -766,6 +766,17 @@ button:disabled {
   margin-bottom: 0.5rem;
 }
 
+.highlight-source {
+  margin: 0.75rem 0 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+.highlight-source a {
+  word-break: break-word;
+}
+
 .risk {
   padding: 0.22rem 0.55rem;
   border-radius: 999px;

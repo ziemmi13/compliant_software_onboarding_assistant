@@ -39,6 +39,10 @@ class FormatterTests(unittest.TestCase):
         self.assertEqual(len(notes), 1)
         self.assertIn("blocked responses", notes[0])
 
+    def test_build_confidence_notes_ignores_raw_analysis_heuristics(self) -> None:
+        notes = build_confidence_notes("unable to verify some parts", [])
+        self.assertEqual(notes, [])
+
 
 if __name__ == "__main__":
     unittest.main()

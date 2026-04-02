@@ -4,6 +4,7 @@ export interface ClauseHighlight {
   title: string;
   rationale: string;
   risk_level: RiskLevel;
+  source_url?: string | null;
 }
 
 export interface AnalyzeResponse {

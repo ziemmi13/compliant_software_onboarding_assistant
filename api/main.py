@@ -59,6 +59,6 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
         highlights=result.highlights,
         source_links=result.source_links,
         blocked_links=result.blocked_links,
-        confidence_notes=build_confidence_notes(result.raw_analysis, result.blocked_links),
+        confidence_notes=build_confidence_notes(result.raw_analysis, result.blocked_links) + result.confidence_notes,
         raw_analysis=result.raw_analysis,
     )

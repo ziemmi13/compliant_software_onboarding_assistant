@@ -32,6 +32,7 @@ class AgentAnalysisResult:
     highlights: list[ClauseHighlight] = field(default_factory=list)
     source_links: list[str] = field(default_factory=list)
     blocked_links: list[str] = field(default_factory=list)
+    confidence_notes: list[str] = field(default_factory=list)
 
 
 class StructuredAgentOutput(BaseModel):
@@ -52,6 +53,51 @@ def sort_highlights_by_severity(highlights: list[ClauseHighlight]) -> list[Claus
         highlights,
         key=lambda highlight: _RISK_PRIORITY.get(highlight.risk_level, _RISK_PRIORITY[RiskLevel.UNKNOWN]),
     )
+
+
+def _normalize_citation_url(url: str) -> str:
+    parsed = urlparse(url.strip())
+    normalized_path = parsed.path or "/"
+    return parsed._replace(fragment="", path=normalized_path).geturl()
+
+
+def validate_highlight_sources(
+    highlights: list[ClauseHighlight],
+    source_links: list[str],
+) -> tuple[list[ClauseHighlight], list[str]]:
+    if not highlights:
+        return highlights, []
+
+    normalized_sources = {_normalize_citation_url(link) for link in source_links}
+    validated_highlights: list[ClauseHighlight] = []
+    invalid_citation_count = 0
+
+    for highlight in highlights:
+        if not highlight.source_url:
+            validated_highlights.append(highlight)
+            continue
+
+        try:
+            normalized_citation = _normalize_citation_url(highlight.source_url)
+        except ValueError:
+            invalid_citation_count += 1
+            validated_highlights.append(highlight.model_copy(update={"source_url": None}))
+            continue
+
+        if normalized_citation not in normalized_sources:
+            invalid_citation_count += 1
+            validated_highlights.append(highlight.model_copy(update={"source_url": None}))
+            continue
+
+        validated_highlights.append(highlight.model_copy(update={"source_url": normalized_citation}))
+
+    notes: list[str] = []
+    if invalid_citation_count:
+        notes.append(
+            f"{invalid_citation_count} highlight citation(s) could not be verified against the discovered source pages."
+        )
+
+    return validated_highlights, notes
 
 
 def parse_structured_analysis(raw_text: str) -> StructuredAgentOutput:
@@ -88,7 +134,11 @@ def parse_structured_analysis(raw_text: str) -> StructuredAgentOutput:
     return structured
 
 
-def build_analysis_prompt(url: str, company_context: str | None = None) -> str:
+def build_analysis_prompt(
+    url: str,
+    source_links: list[str],
+    company_context: str | None = None,
+) -> str:
     cleaned_context = (company_context or "").strip()
     prompt_lines = [
         f"Analyze the Terms and Conditions for: {url}",
@@ -104,6 +154,24 @@ def build_analysis_prompt(url: str, company_context: str | None = None) -> str:
             ]
         )
 
+    if source_links:
+        prompt_lines.extend(
+            [
+                "",
+                "Discovered source pages:",
+                *[f"- {link}" for link in source_links],
+                "Use only one of the exact URLs above as source_url for each highlight. Do not invent, rewrite, or infer any other URL.",
+            ]
+        )
+    else:
+        prompt_lines.extend(
+            [
+                "",
+                "No discovered source pages were confirmed.",
+                "Set source_url to null for every highlight.",
+            ]
+        )
+
     prompt_lines.extend(
         [
             "",
@@ -115,11 +183,13 @@ def build_analysis_prompt(url: str, company_context: str | None = None) -> str:
             "    {",
             '      "title": "Short clause name",',
             '      "rationale": "Why this clause matters, with emphasis on the provided company context when relevant.",',
-            '      "risk_level": "low"',
+            '      "risk_level": "low",',
+            '      "source_url": "https://example.com/terms"',
             "    }",
             "  ]",
             "}",
             "Allowed risk_level values: low, medium, high, unknown.",
+            "For every highlight, include source_url as the exact page URL that supports the finding, chosen only from the discovered source pages listed above. Use null if you cannot reliably attribute the highlight to one of those URLs.",
             "If no reliable terms were found, set summary to explain that clearly and return an empty highlights array.",
             "Limit highlights to the most important clauses only.",
         ]
@@ -174,7 +244,7 @@ async def run_terms_analysis(url: str, company_context: str | None = None) -> Ag
         session_id=session_id,
     )
 
-    prompt = build_analysis_prompt(url, company_context)
+    prompt = build_analysis_prompt(url, source_links, company_context)
 
     final_text = ""
     try:
@@ -200,11 +270,13 @@ async def run_terms_analysis(url: str, company_context: str | None = None) -> Ag
         raise RuntimeError("No analysis text was returned by the agent.")
 
     structured = parse_structured_analysis(final_text)
+    validated_highlights, confidence_notes = validate_highlight_sources(structured.highlights, source_links)
 
     return AgentAnalysisResult(
         summary=structured.summary,
-        highlights=structured.highlights,
+        highlights=validated_highlights,
         raw_analysis=final_text,
         source_links=source_links,
         blocked_links=blocked_links,
+        confidence_notes=confidence_notes,
     )
