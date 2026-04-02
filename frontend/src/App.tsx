@@ -12,6 +12,8 @@ type AnalysisResults = {
   dpa: DpaAnalyzeResponse | null;
 };
 
+type ResultTab = "terms" | "dpa";
+
 const CONTEXT_PRESETS = [
   {
     label: "B2B SaaS",
@@ -98,6 +100,7 @@ export default function App() {
   const [loadingStageIndex, setLoadingStageIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<AnalysisResults>({ terms: null, dpa: null });
+  const [activeResultTab, setActiveResultTab] = useState<ResultTab>("terms");
 
   useEffect(() => {
     if (!loading) {
@@ -128,6 +131,7 @@ export default function App() {
     setLoading(true);
     setError(null);
     setResults({ terms: null, dpa: null });
+    setActiveResultTab(reviewSelection.dpa && !reviewSelection.terms ? "dpa" : "terms");
 
     try {
       const jobs = [
@@ -204,6 +208,227 @@ export default function App() {
   };
 
   const hasResults = Boolean(results.terms || results.dpa);
+  const availableTabs: ResultTab[] = [results.terms ? "terms" : null, results.dpa ? "dpa" : null].filter(Boolean) as ResultTab[];
+  const visibleResultTab = availableTabs.includes(activeResultTab) ? activeResultTab : availableTabs[0] ?? "terms";
+
+  useEffect(() => {
+    if (results.terms && !results.dpa) {
+      setActiveResultTab("terms");
+      return;
+    }
+
+    if (results.dpa && !results.terms) {
+      setActiveResultTab("dpa");
+    }
+  }, [results.dpa, results.terms]);
+
+  const renderTermsPanel = () => {
+    if (!results.terms) {
+      return null;
+    }
+
+    return (
+      <section className="result-block">
+        <section className="results-topbar simple-topbar">
+          <div>
+            <p className="section-kicker">T&amp;C brief</p>
+            <h2>{results.terms.normalized_domain}</h2>
+          </div>
+          <div className="topbar-metrics compact-metrics">
+            <span className="topbar-pill topbar-pill-high">High {termsRiskCounts?.high ?? 0}</span>
+            <span className="topbar-pill">Coverage {getCoverageLabel(results.terms.source_links, results.terms.blocked_links)}</span>
+            <span className="topbar-pill">Sources {results.terms.source_links.length}</span>
+            {results.terms.blocked_links.length > 0 && <span className="topbar-pill">Blocked {results.terms.blocked_links.length}</span>}
+          </div>
+        </section>
+
+        <div className="results-primary">
+          <article className="card summary-card narrative-card">
+            <div className="card-header">
+              <h2>T&amp;C Summary</h2>
+            </div>
+            <p className="summary-copy">{results.terms.summary}</p>
+          </article>
+
+          <article className="card highlights-card narrative-card">
+            <div className="card-header">
+              <h2>Key Highlights</h2>
+            </div>
+            {results.terms.highlights.length === 0 ? (
+              <p>No highlights were extracted.</p>
+            ) : (
+              <ul className="highlights editorial-highlights">
+                {results.terms.highlights.map((item, index) => (
+                  <li key={`${item.title}-${index}`} className={`highlight-card highlight-card-${item.risk_level}`}>
+                    <div className="title-row">
+                      <strong>{item.title}</strong>
+                      <span className={`risk risk-${item.risk_level}`}>{item.risk_level}</span>
+                    </div>
+                    <p>{item.rationale}</p>
+                    {item.source_url && (
+                      <p className="highlight-source">
+                        Source:{" "}
+                        <a href={item.source_url} target="_blank" rel="noreferrer">
+                          {item.source_url}
+                        </a>
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </article>
+
+          <article className="card evidence-card narrative-card">
+            <div className="card-header">
+              <h2>Evidence &amp; Coverage</h2>
+            </div>
+
+            {results.terms.confidence_notes.length > 0 && (
+              <div className="coverage-note">
+                {results.terms.confidence_notes.map((note) => (
+                  <p key={note}>{note}</p>
+                ))}
+              </div>
+            )}
+
+            <div className="evidence-section">
+              <h3>Source links</h3>
+              {results.terms.source_links.length === 0 ? (
+                <p className="muted-copy">No source links were confirmed.</p>
+              ) : (
+                <ul className="source-list">
+                  {results.terms.source_links.map((link) => (
+                    <li key={link}>
+                      <a href={link} target="_blank" rel="noreferrer">
+                        {link}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {results.terms.blocked_links.length > 0 && (
+              <div className="evidence-section">
+                <h3>Blocked links</h3>
+                <ul className="blocked-list">
+                  {results.terms.blocked_links.map((link) => (
+                    <li key={link}>{link}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </article>
+        </div>
+      </section>
+    );
+  };
+
+  const renderDpaPanel = () => {
+    if (!results.dpa) {
+      return null;
+    }
+
+    return (
+      <section className="result-block">
+        <section className="results-topbar simple-topbar">
+          <div>
+            <p className="section-kicker">DPA brief</p>
+            <h2>{results.dpa.normalized_domain}</h2>
+          </div>
+          <div className="topbar-metrics compact-metrics">
+            <span className="topbar-pill topbar-pill-high">Missing {dpaChecklistCounts?.missing ?? 0}</span>
+            <span className="topbar-pill">Partial {dpaChecklistCounts?.partial ?? 0}</span>
+            <span className="topbar-pill">Satisfied {dpaChecklistCounts?.satisfied ?? 0}</span>
+            <span className="topbar-pill">Coverage {getCoverageLabel(results.dpa.source_links, results.dpa.blocked_links)}</span>
+            <span className="topbar-pill">Sources {results.dpa.source_links.length}</span>
+            {results.dpa.blocked_links.length > 0 && <span className="topbar-pill">Blocked {results.dpa.blocked_links.length}</span>}
+          </div>
+        </section>
+
+        <div className="results-primary">
+          <article className="card summary-card narrative-card">
+            <div className="card-header">
+              <h2>DPA Summary</h2>
+            </div>
+            <p className="summary-copy">{results.dpa.summary}</p>
+          </article>
+
+          <article className="card highlights-card narrative-card">
+            <div className="card-header">
+              <h2>Article 28 Checklist</h2>
+            </div>
+            {results.dpa.checklist.length === 0 ? (
+              <p>No checklist items were extracted.</p>
+            ) : (
+              <ul className="highlights editorial-highlights dpa-checklist">
+                {results.dpa.checklist.map((item) => (
+                  <li key={item.requirement_key} className={`highlight-card dpa-checklist-item dpa-checklist-item-${item.status}`}>
+                    <div className="title-row">
+                      <strong>{item.requirement_title}</strong>
+                      <span className={`check-status check-status-${item.status}`}>{getChecklistStatusLabel(item)}</span>
+                    </div>
+                    <p>{item.rationale}</p>
+                    {item.source_url && (
+                      <p className="highlight-source">
+                        Source:{" "}
+                        <a href={item.source_url} target="_blank" rel="noreferrer">
+                          {item.source_url}
+                        </a>
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </article>
+
+          <article className="card evidence-card narrative-card">
+            <div className="card-header">
+              <h2>Evidence &amp; Coverage</h2>
+            </div>
+
+            {results.dpa.confidence_notes.length > 0 && (
+              <div className="coverage-note">
+                {results.dpa.confidence_notes.map((note) => (
+                  <p key={note}>{note}</p>
+                ))}
+              </div>
+            )}
+
+            <div className="evidence-section">
+              <h3>Source links</h3>
+              {results.dpa.source_links.length === 0 ? (
+                <p className="muted-copy">No source links were confirmed.</p>
+              ) : (
+                <ul className="source-list">
+                  {results.dpa.source_links.map((link) => (
+                    <li key={link}>
+                      <a href={link} target="_blank" rel="noreferrer">
+                        {link}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {results.dpa.blocked_links.length > 0 && (
+              <div className="evidence-section">
+                <h3>Blocked links</h3>
+                <ul className="blocked-list">
+                  {results.dpa.blocked_links.map((link) => (
+                    <li key={link}>{link}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </article>
+        </div>
+      </section>
+    );
+  };
 
   return (
     <main className="page-shell">
@@ -417,201 +642,38 @@ export default function App() {
 
         {hasResults && !loading && (
           <section className="results results-stack">
-            {results.terms && (
-              <section className="result-block">
-                <section className="results-topbar simple-topbar">
-                  <div>
-                    <p className="section-kicker">T&amp;C brief</p>
-                    <h2>{results.terms.normalized_domain}</h2>
-                  </div>
-                  <div className="topbar-metrics compact-metrics">
-                    <span className="topbar-pill topbar-pill-high">High {termsRiskCounts?.high ?? 0}</span>
-                    <span className="topbar-pill">Coverage {getCoverageLabel(results.terms.source_links, results.terms.blocked_links)}</span>
-                    <span className="topbar-pill">Sources {results.terms.source_links.length}</span>
-                    {results.terms.blocked_links.length > 0 && <span className="topbar-pill">Blocked {results.terms.blocked_links.length}</span>}
-                  </div>
-                </section>
-
-                <div className="results-primary">
-                  <article className="card summary-card narrative-card">
-                    <div className="card-header">
-                      <h2>T&amp;C Summary</h2>
-                    </div>
-                    <p className="summary-copy">{results.terms.summary}</p>
-                  </article>
-
-                  <article className="card highlights-card narrative-card">
-                    <div className="card-header">
-                      <h2>Key Highlights</h2>
-                    </div>
-                    {results.terms.highlights.length === 0 ? (
-                      <p>No highlights were extracted.</p>
-                    ) : (
-                      <ul className="highlights editorial-highlights">
-                        {results.terms.highlights.map((item, index) => (
-                          <li key={`${item.title}-${index}`} className={`highlight-card highlight-card-${item.risk_level}`}>
-                            <div className="title-row">
-                              <strong>{item.title}</strong>
-                              <span className={`risk risk-${item.risk_level}`}>{item.risk_level}</span>
-                            </div>
-                            <p>{item.rationale}</p>
-                            {item.source_url && (
-                              <p className="highlight-source">
-                                Source:{" "}
-                                <a href={item.source_url} target="_blank" rel="noreferrer">
-                                  {item.source_url}
-                                </a>
-                              </p>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </article>
-
-                  <article className="card evidence-card narrative-card">
-                    <div className="card-header">
-                      <h2>Evidence &amp; Coverage</h2>
-                    </div>
-
-                    {results.terms.confidence_notes.length > 0 && (
-                      <div className="coverage-note">
-                        {results.terms.confidence_notes.map((note) => (
-                          <p key={note}>{note}</p>
-                        ))}
-                      </div>
-                    )}
-
-                    <div className="evidence-section">
-                      <h3>Source links</h3>
-                      {results.terms.source_links.length === 0 ? (
-                        <p className="muted-copy">No source links were confirmed.</p>
-                      ) : (
-                        <ul className="source-list">
-                          {results.terms.source_links.map((link) => (
-                            <li key={link}>
-                              <a href={link} target="_blank" rel="noreferrer">
-                                {link}
-                              </a>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-
-                    {results.terms.blocked_links.length > 0 && (
-                      <div className="evidence-section">
-                        <h3>Blocked links</h3>
-                        <ul className="blocked-list">
-                          {results.terms.blocked_links.map((link) => (
-                            <li key={link}>{link}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </article>
+            {availableTabs.length > 1 && (
+              <div className="results-toolbar">
+                <div className="results-tablist" role="tablist" aria-label="Result sections">
+                  {results.terms && (
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={visibleResultTab === "terms"}
+                      className={visibleResultTab === "terms" ? "results-tab results-tab-active" : "results-tab"}
+                      onClick={() => setActiveResultTab("terms")}
+                    >
+                      <span>T&amp;C</span>
+                      <strong>High {termsRiskCounts?.high ?? 0}</strong>
+                    </button>
+                  )}
+                  {results.dpa && (
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={visibleResultTab === "dpa"}
+                      className={visibleResultTab === "dpa" ? "results-tab results-tab-active" : "results-tab"}
+                      onClick={() => setActiveResultTab("dpa")}
+                    >
+                      <span>DPA</span>
+                      <strong>Missing {dpaChecklistCounts?.missing ?? 0}</strong>
+                    </button>
+                  )}
                 </div>
-              </section>
+              </div>
             )}
 
-            {results.dpa && (
-              <section className="result-block">
-                <section className="results-topbar simple-topbar">
-                  <div>
-                    <p className="section-kicker">DPA brief</p>
-                    <h2>{results.dpa.normalized_domain}</h2>
-                  </div>
-                  <div className="topbar-metrics compact-metrics">
-                    <span className="topbar-pill topbar-pill-high">Missing {dpaChecklistCounts?.missing ?? 0}</span>
-                    <span className="topbar-pill">Partial {dpaChecklistCounts?.partial ?? 0}</span>
-                    <span className="topbar-pill">Satisfied {dpaChecklistCounts?.satisfied ?? 0}</span>
-                    <span className="topbar-pill">Coverage {getCoverageLabel(results.dpa.source_links, results.dpa.blocked_links)}</span>
-                    <span className="topbar-pill">Sources {results.dpa.source_links.length}</span>
-                    {results.dpa.blocked_links.length > 0 && <span className="topbar-pill">Blocked {results.dpa.blocked_links.length}</span>}
-                  </div>
-                </section>
-
-                <div className="results-primary">
-                  <article className="card summary-card narrative-card">
-                    <div className="card-header">
-                      <h2>DPA Summary</h2>
-                    </div>
-                    <p className="summary-copy">{results.dpa.summary}</p>
-                  </article>
-
-                  <article className="card highlights-card narrative-card">
-                    <div className="card-header">
-                      <h2>Article 28 Checklist</h2>
-                    </div>
-                    {results.dpa.checklist.length === 0 ? (
-                      <p>No checklist items were extracted.</p>
-                    ) : (
-                      <ul className="highlights editorial-highlights dpa-checklist">
-                        {results.dpa.checklist.map((item) => (
-                          <li key={item.requirement_key} className={`highlight-card dpa-checklist-item dpa-checklist-item-${item.status}`}>
-                            <div className="title-row">
-                              <strong>{item.requirement_title}</strong>
-                              <span className={`check-status check-status-${item.status}`}>{getChecklistStatusLabel(item)}</span>
-                            </div>
-                            <p>{item.rationale}</p>
-                            {item.source_url && (
-                              <p className="highlight-source">
-                                Source:{" "}
-                                <a href={item.source_url} target="_blank" rel="noreferrer">
-                                  {item.source_url}
-                                </a>
-                              </p>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </article>
-
-                  <article className="card evidence-card narrative-card">
-                    <div className="card-header">
-                      <h2>Evidence &amp; Coverage</h2>
-                    </div>
-
-                    {results.dpa.confidence_notes.length > 0 && (
-                      <div className="coverage-note">
-                        {results.dpa.confidence_notes.map((note) => (
-                          <p key={note}>{note}</p>
-                        ))}
-                      </div>
-                    )}
-
-                    <div className="evidence-section">
-                      <h3>Source links</h3>
-                      {results.dpa.source_links.length === 0 ? (
-                        <p className="muted-copy">No source links were confirmed.</p>
-                      ) : (
-                        <ul className="source-list">
-                          {results.dpa.source_links.map((link) => (
-                            <li key={link}>
-                              <a href={link} target="_blank" rel="noreferrer">
-                                {link}
-                              </a>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-
-                    {results.dpa.blocked_links.length > 0 && (
-                      <div className="evidence-section">
-                        <h3>Blocked links</h3>
-                        <ul className="blocked-list">
-                          {results.dpa.blocked_links.map((link) => (
-                            <li key={link}>{link}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </article>
-                </div>
-              </section>
-            )}
+            {visibleResultTab === "terms" ? renderTermsPanel() : renderDpaPanel()}
           </section>
         )}
       </main>
