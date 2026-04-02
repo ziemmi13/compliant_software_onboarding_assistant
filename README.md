@@ -38,7 +38,7 @@ Get-Content legal_scout/.env | ForEach-Object {
 Start backend server:
 
 ```powershell
-c:/Users/Hyperbook/Desktop/legal-tech/post_hackaton_app/venv/Scripts/python.exe -m uvicorn api.main:app --reload --port 8000
+python -m uvicorn api.main:app --reload --port 8000
 ```
 
 Backend endpoints:
@@ -80,5 +80,5 @@ Note: Some domains can block automated fetches of terms pages; in those cases th
 ## Backend Tests
 
 ```powershell
-c:/Users/Hyperbook/Desktop/legal-tech/post_hackaton_app/venv/Scripts/python.exe -m unittest discover -s tests -p "test_*.py"
+python -m unittest discover -s tests -p "test_*.py"
 ```
