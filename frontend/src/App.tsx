@@ -4,6 +4,7 @@ import { AnalyzeResponse, analyzeUrl } from "./api";
 
 export default function App() {
   const [url, setUrl] = useState("");
+  const [companyContext, setCompanyContext] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AnalyzeResponse | null>(null);
@@ -21,7 +22,7 @@ export default function App() {
     setResult(null);
 
     try {
-      const analysis = await analyzeUrl(url.trim());
+      const analysis = await analyzeUrl(url.trim(), companyContext);
       setResult(analysis);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error.");
@@ -55,6 +56,19 @@ export default function App() {
               {loading ? "Analyzing..." : "Analyze"}
             </button>
           </div>
+
+          <label htmlFor="company-context">Company context</label>
+          <textarea
+            id="company-context"
+            className="context-input"
+            placeholder="B2B SaaS for HR teams. Handles employee PII. Most concerned about liability, indemnity, data processing, and termination terms."
+            value={companyContext}
+            onChange={(e) => setCompanyContext(e.target.value)}
+            rows={5}
+          />
+          <p className="field-note">
+            Add business context, product details, or specific legal concerns so the analysis can prioritize the most relevant clauses.
+          </p>
         </form>
 
         {error && <p className="error">{error}</p>}

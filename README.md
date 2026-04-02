@@ -57,6 +57,8 @@ npm run dev
 
 Open the app at `http://127.0.0.1:5173` (or the URL printed by Vite).
 
+The frontend includes an optional company-context field so you can describe the business, product, data sensitivity, or specific legal concerns and have the agent prioritize those risks in its analysis.
+
 Optional environment variable:
 
 - `VITE_API_BASE_URL` (default: `http://127.0.0.1:8000`)
@@ -65,6 +67,12 @@ Optional environment variable:
 
 ```powershell
 Invoke-RestMethod -Method POST -Uri "http://127.0.0.1:8000/api/analyze" -ContentType "application/json" -Body '{"url":"https://openai.com"}'
+```
+
+Example with company context:
+
+```powershell
+Invoke-RestMethod -Method POST -Uri "http://127.0.0.1:8000/api/analyze" -ContentType "application/json" -Body '{"url":"https://openai.com","company_context":"B2B SaaS platform handling employee and customer personal data. Focus on liability, indemnity, privacy, and termination risks."}'
 ```
 
 Note: Some domains can block automated fetches of terms pages; in those cases the API returns blocked links and lower-confidence output instead of clause highlights.

@@ -1,5 +1,6 @@
 import unittest
 
+from api.services.analysis_service import build_analysis_prompt
 from api.services.analysis_service import validate_input_url
 
 
@@ -23,6 +24,20 @@ class ValidateInputUrlTests(unittest.TestCase):
     def test_rejects_non_http_schemes(self) -> None:
         with self.assertRaises(ValueError):
             validate_input_url("ftp://example.com")
+
+
+class BuildAnalysisPromptTests(unittest.TestCase):
+    def test_includes_company_context_when_provided(self) -> None:
+        prompt = build_analysis_prompt(
+            "https://example.com",
+            "B2B SaaS handling employee personal data.",
+        )
+        self.assertIn("Company context:", prompt)
+        self.assertIn("B2B SaaS handling employee personal data.", prompt)
+
+    def test_omits_company_context_section_when_missing(self) -> None:
+        prompt = build_analysis_prompt("https://example.com")
+        self.assertNotIn("Company context:", prompt)
 
 
 if __name__ == "__main__":

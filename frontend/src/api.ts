@@ -24,13 +24,17 @@ export interface ErrorResponse {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
-export async function analyzeUrl(url: string): Promise<AnalyzeResponse> {
+export async function analyzeUrl(url: string, companyContext?: string): Promise<AnalyzeResponse> {
+  const trimmedContext = companyContext?.trim();
   const response = await fetch(`${API_BASE_URL}/api/analyze`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ url }),
+    body: JSON.stringify({
+      url,
+      company_context: trimmedContext || undefined,
+    }),
   });
 
   if (!response.ok) {

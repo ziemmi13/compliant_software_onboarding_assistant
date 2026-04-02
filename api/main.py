@@ -43,7 +43,10 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
         raise HTTPException(status_code=400, detail={"error": "invalid_url", "details": str(exc)}) from exc
 
     try:
-        result = await run_terms_analysis(normalized_url)
+        result = await run_terms_analysis(
+            normalized_url,
+            company_context=request.company_context,
+        )
     except Exception as exc:
         raise HTTPException(
             status_code=500,

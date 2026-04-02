@@ -24,6 +24,35 @@ class AgentAnalysisResult:
     blocked_links: list[str]
 
 
+def build_analysis_prompt(url: str, company_context: str | None = None) -> str:
+    cleaned_context = (company_context or "").strip()
+    prompt_lines = [
+        f"Analyze the Terms and Conditions for: {url}",
+    ]
+
+    if cleaned_context:
+        prompt_lines.extend(
+            [
+                "",
+                "Company context:",
+                cleaned_context,
+                "Use this context to prioritize the most relevant legal and operational risks.",
+            ]
+        )
+
+    prompt_lines.extend(
+        [
+            "",
+            "Return:",
+            "1. A concise summary",
+            "2. Key clause highlights",
+            "3. Risks especially relevant to the company context if provided",
+        ]
+    )
+
+    return "\n".join(prompt_lines)
+
+
 def validate_input_url(url: str) -> str:
     parsed = urlparse(url)
     if parsed.scheme not in {"http", "https"}:
@@ -48,7 +77,7 @@ def validate_input_url(url: str) -> str:
     return parsed.geturl()
 
 
-async def run_terms_analysis(url: str) -> AgentAnalysisResult:
+async def run_terms_analysis(url: str, company_context: str | None = None) -> AgentAnalysisResult:
     discovered = find_terms_from_homepage(url)
     source_links = discovered.get("valid", [])
     blocked_links = discovered.get("blocked", [])
@@ -70,10 +99,7 @@ async def run_terms_analysis(url: str) -> AgentAnalysisResult:
         session_id=session_id,
     )
 
-    prompt = (
-        f"Analyze the Terms and Conditions for: {url}\n"
-        "Return a concise summary and key clause highlights."
-    )
+    prompt = build_analysis_prompt(url, company_context)
 
     final_text = ""
     try:

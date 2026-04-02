@@ -25,7 +25,13 @@ class ApiRouteTests(unittest.TestCase):
         )
 
         with patch("api.main.run_terms_analysis", new=AsyncMock(return_value=mock_result)):
-            response = self.client.post("/api/analyze", json={"url": "https://example.com"})
+            response = self.client.post(
+                "/api/analyze",
+                json={
+                    "url": "https://example.com",
+                    "company_context": "B2B HR SaaS handling employee data.",
+                },
+            )
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
@@ -33,6 +39,19 @@ class ApiRouteTests(unittest.TestCase):
         self.assertEqual(payload["normalized_domain"], "example.com")
         self.assertTrue(payload["summary"])
         self.assertEqual(len(payload["highlights"]), 1)
+
+    def test_analyze_endpoint_accepts_missing_company_context(self) -> None:
+        mock_result = AgentAnalysisResult(
+            raw_analysis="Summary: Solid baseline.",
+            source_links=[],
+            blocked_links=[],
+        )
+
+        with patch("api.main.run_terms_analysis", new=AsyncMock(return_value=mock_result)) as mock_run:
+            response = self.client.post("/api/analyze", json={"url": "https://example.com"})
+
+        self.assertEqual(response.status_code, 200)
+        mock_run.assert_awaited_once()
 
     def test_analyze_endpoint_rejects_invalid_scheme(self) -> None:
         response = self.client.post("/api/analyze", json={"url": "ftp://example.com"})

@@ -16,6 +16,7 @@ class RiskLevel(str, Enum):
 
 class AnalyzeRequest(BaseModel):
     url: AnyHttpUrl
+    company_context: str | None = Field(default=None, max_length=2000)
 
 
 class ClauseHighlight(BaseModel):
