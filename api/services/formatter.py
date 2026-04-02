@@ -9,6 +9,7 @@ from api.schemas import RiskLevel
 _BULLET_PATTERN = re.compile(r"^(?:[-*]|\d+\.)\s+(.+)$")
 _HEADING_PREFIX_PATTERN = re.compile(r"^(?:summary|overview|analysis)\s*:\s*", re.IGNORECASE)
 _MARKDOWN_EMPHASIS_PATTERN = re.compile(r"\*{1,2}([^*]+)\*{1,2}")
+_MARKDOWN_HEADING_PATTERN = re.compile(r"^#{1,6}\s*")
 _SECTION_HEADING_PATTERN = re.compile(
     r"^(?:\d+\.?\s*)?(?:concise\s+summary|summary|overview|analysis|key\s+highlights?)\s*:?$",
     re.IGNORECASE,
@@ -16,6 +17,7 @@ _SECTION_HEADING_PATTERN = re.compile(
 
 
 def _clean_inline_markdown(text: str) -> str:
+    text = _MARKDOWN_HEADING_PATTERN.sub("", text)
     text = _MARKDOWN_EMPHASIS_PATTERN.sub(r"\1", text)
     return text.replace("`", "").strip()
 
@@ -43,11 +45,21 @@ def build_summary(raw_analysis: str) -> str:
     paragraphs = [segment.strip() for segment in cleaned.split("\n\n") if segment.strip()]
 
     for paragraph in paragraphs:
-        candidate = _HEADING_PREFIX_PATTERN.sub("", paragraph).strip()
-        candidate = _clean_inline_markdown(candidate)
-        if not candidate or _is_structural_heading(candidate):
+        lines = [_clean_inline_markdown(line) for line in paragraph.splitlines() if line.strip()]
+        if not lines:
             continue
-        return candidate
+
+        first_line = _HEADING_PREFIX_PATTERN.sub("", lines[0]).strip()
+        first_line = _clean_inline_markdown(first_line)
+
+        if _is_structural_heading(first_line):
+            remaining_lines = [line for line in lines[1:] if line and not _is_structural_heading(line)]
+            if remaining_lines:
+                return " ".join(remaining_lines).strip()
+            continue
+
+        if first_line:
+            return first_line
 
     return "No summary generated."
 

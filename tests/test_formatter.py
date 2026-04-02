@@ -22,6 +22,11 @@ class FormatterTests(unittest.TestCase):
         summary = build_summary(raw)
         self.assertEqual(summary, "This agreement includes a liability cap and broad termination rights.")
 
+    def test_build_summary_skips_markdown_heading(self) -> None:
+        raw = "### 1. Concise Summary\n\nThis agreement includes a liability cap and broad termination rights."
+        summary = build_summary(raw)
+        self.assertEqual(summary, "This agreement includes a liability cap and broad termination rights.")
+
     def test_build_highlights_extracts_bullets_and_risk(self) -> None:
         raw = "- Liability: high risk limitation of liability language"
         highlights = build_highlights(raw)
