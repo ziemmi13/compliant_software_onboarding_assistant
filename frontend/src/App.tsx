@@ -93,6 +93,22 @@ function getSelectionLabel(selection: ReviewSelection) {
   return "T&C";
 }
 
+function getTermsCoverageLabel(result: AnalyzeResponse) {
+  if (result.blocked_links.length > 0) {
+    return result.source_links.length > 0 ? "Partial coverage" : "Blocked coverage";
+  }
+
+  return result.source_links.length > 0 ? "Good coverage" : "Limited coverage";
+}
+
+function getDpaCoverageLabel(result: DpaAnalyzeResponse) {
+  if (result.blocked_links.length > 0) {
+    return result.source_links.length > 0 ? "Partial coverage" : "Blocked coverage";
+  }
+
+  return result.source_links.length > 0 ? "Good coverage" : "Limited coverage";
+}
+
 export default function App() {
   const [url, setUrl] = useState("");
   const [companyContext, setCompanyContext] = useState("");
@@ -595,6 +611,42 @@ export default function App() {
               </button>
             </div>
 
+            <section className="review-overview" aria-label="Review overview">
+              {results.terms && (
+                <button
+                  type="button"
+                  className={visibleResultTab === "terms" ? "overview-card overview-card-active" : "overview-card"}
+                  onClick={() => setActiveResultTab("terms")}
+                >
+                  <span className="overview-card-kicker">T&amp;C</span>
+                  <strong className="overview-card-title">Business terms review</strong>
+                  <div className="overview-card-metrics">
+                    <span>High {termsRiskCounts?.high ?? 0}</span>
+                    <span>Medium {termsRiskCounts?.medium ?? 0}</span>
+                    <span>Sources {results.terms.source_links.length}</span>
+                  </div>
+                  <p className="overview-card-copy">{getTermsCoverageLabel(results.terms)}</p>
+                </button>
+              )}
+
+              {results.dpa && (
+                <button
+                  type="button"
+                  className={visibleResultTab === "dpa" ? "overview-card overview-card-dpa overview-card-active" : "overview-card overview-card-dpa"}
+                  onClick={() => setActiveResultTab("dpa")}
+                >
+                  <span className="overview-card-kicker">DPA</span>
+                  <strong className="overview-card-title">Processor obligations review</strong>
+                  <div className="overview-card-metrics">
+                    <span>Missing {dpaChecklistCounts?.missing ?? 0}</span>
+                    <span>Partial {dpaChecklistCounts?.partial ?? 0}</span>
+                    <span>Sources {results.dpa.source_links.length}</span>
+                  </div>
+                  <p className="overview-card-copy">{getDpaCoverageLabel(results.dpa)}</p>
+                </button>
+              )}
+            </section>
+
             <section className="results results-stack">
 
               {visibleResultTab === "terms" ? renderTermsPanel() : renderDpaPanel()}
@@ -606,7 +658,7 @@ export default function App() {
               <div className="hero-copy">
                 <h1>Compliant Software Onboarding</h1>
                 <p className="hero-body">
-                  Choose whether to review T&amp;C, DPA, or both in a single submission.
+                  Screen andy software in minutes instead of days.
                 </p>
               </div>
             </header>
@@ -650,6 +702,9 @@ export default function App() {
 
                 <form onSubmit={onSubmit} className="form">
                   <label htmlFor="url">Website or legal document URL</label>
+                  <p className="field-note field-note-tight">
+                    Paste a homepage, terms page, or DPA link. The app will follow the relevant legal surface from there.
+                  </p>
                   <div className="row">
                     <input
                       id="url"
@@ -664,13 +719,16 @@ export default function App() {
                   </div>
 
                   <label htmlFor="company-context">Company context</label>
+                  <p className="field-note field-note-tight">
+                    Optional. Add your business model, customer profile, or legal concerns so the review is prioritized correctly.
+                  </p>
                   <textarea
                     id="company-context"
                     className="context-input"
                     placeholder="Describe the company, product, customers, data sensitivity, or specific legal concerns you want prioritized."
                     value={companyContext}
                     onChange={(e) => setCompanyContext(e.target.value)}
-                    rows={5}
+                    rows={3}
                   />
                   <div className="preset-group">
                     <p className="preset-label">Quick context presets</p>
@@ -688,14 +746,6 @@ export default function App() {
                     </div>
                   </div>
                 </form>
-
-                {!hasResults && !error && (
-                  <div className="inline-note">
-                    <p>
-                      Enter a vendor website or legal URL and optional company context. Both T&amp;C and DPA are selected by default.
-                    </p>
-                  </div>
-                )}
 
                 {error && <p className="error">{error}</p>}
               </section>

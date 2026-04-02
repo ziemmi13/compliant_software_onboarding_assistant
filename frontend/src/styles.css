@@ -157,8 +157,8 @@ body {
   align-items: center;
   justify-content: center;
   gap: 1.35rem;
-  margin-bottom: 2.1rem;
-  padding: 1.2rem 0 1.6rem;
+  margin-bottom: 1.0rem;
+  padding: 1.2rem 0 1.2rem;
   text-align: center;
   width: min(100%, 1480px);
   margin-inline: auto;
@@ -386,12 +386,17 @@ textarea:focus {
 
 .context-input {
   margin-top: 0;
+  min-height: 5.25rem;
 }
 
 .field-note {
   margin: 0.5rem 0 0;
   color: var(--muted);
   font-size: 0.95rem;
+}
+
+.field-note-tight {
+  margin-top: -0.45rem;
 }
 
 .preset-group {
@@ -532,6 +537,82 @@ button:disabled {
   color: var(--navy-soft);
   box-shadow: none;
   filter: none;
+}
+
+.review-overview {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.overview-card {
+  display: grid;
+  gap: 0.65rem;
+  padding: 1.1rem 1.15rem;
+  border: 1px solid rgba(0, 33, 71, 0.08);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--ink);
+  text-align: left;
+  box-shadow: 0 18px 34px rgba(0, 33, 71, 0.06);
+}
+
+.overview-card:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 22px 38px rgba(0, 33, 71, 0.08);
+  filter: none;
+}
+
+.overview-card-active {
+  border-color: rgba(158, 43, 37, 0.18);
+  background: linear-gradient(180deg, rgba(255, 248, 247, 0.98), rgba(255, 255, 255, 0.92));
+}
+
+.overview-card-dpa.overview-card-active {
+  border-color: rgba(0, 33, 71, 0.18);
+  background: linear-gradient(180deg, rgba(240, 245, 250, 0.96), rgba(255, 255, 255, 0.92));
+}
+
+.overview-card-kicker {
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--navy-soft);
+}
+
+.overview-card-title {
+  font-size: 1.35rem;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  color: var(--navy);
+}
+
+.overview-card-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.overview-card-metrics span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.9rem;
+  padding: 0.28rem 0.65rem;
+  border-radius: 999px;
+  background: rgba(0, 33, 71, 0.05);
+  color: var(--navy);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.overview-card-copy {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.6;
 }
 
 .results-tablist {
