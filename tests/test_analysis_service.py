@@ -1,6 +1,7 @@
 import unittest
 
 from api.services.analysis_service import build_analysis_prompt
+from api.services.analysis_service import parse_structured_analysis
 from api.services.analysis_service import validate_input_url
 
 
@@ -38,6 +39,31 @@ class BuildAnalysisPromptTests(unittest.TestCase):
     def test_omits_company_context_section_when_missing(self) -> None:
         prompt = build_analysis_prompt("https://example.com")
         self.assertNotIn("Company context:", prompt)
+
+    def test_requires_json_only_output(self) -> None:
+        prompt = build_analysis_prompt("https://example.com")
+        self.assertIn("Return only a valid JSON object.", prompt)
+        self.assertIn('"summary"', prompt)
+        self.assertIn('"highlights"', prompt)
+
+
+class ParseStructuredAnalysisTests(unittest.TestCase):
+    def test_parses_structured_json(self) -> None:
+        result = parse_structured_analysis(
+            '{"summary":"A concise summary.","highlights":[{"title":"Liability","rationale":"Cap on damages.","risk_level":"high"}]}'
+        )
+        self.assertEqual(result.summary, "A concise summary.")
+        self.assertEqual(len(result.highlights), 1)
+
+    def test_parses_json_wrapped_in_code_fence(self) -> None:
+        result = parse_structured_analysis(
+            '```json\n{"summary":"A concise summary.","highlights":[]}\n```'
+        )
+        self.assertEqual(result.summary, "A concise summary.")
+
+    def test_rejects_unstructured_response(self) -> None:
+        with self.assertRaises(ValueError):
+            parse_structured_analysis("This is not JSON.")
 
 
 if __name__ == "__main__":

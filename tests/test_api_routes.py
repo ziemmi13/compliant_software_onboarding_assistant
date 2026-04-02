@@ -19,7 +19,9 @@ class ApiRouteTests(unittest.TestCase):
 
     def test_analyze_endpoint_success(self) -> None:
         mock_result = AgentAnalysisResult(
-            raw_analysis="Summary: Solid baseline.\n- Liability: high risk cap on damages",
+            summary="Solid baseline.",
+            highlights=[],
+            raw_analysis='{"summary":"Solid baseline.","highlights":[]}',
             source_links=["https://example.com/terms"],
             blocked_links=[],
         )
@@ -37,12 +39,14 @@ class ApiRouteTests(unittest.TestCase):
         payload = response.json()
         self.assertEqual(payload["input_url"], "https://example.com/")
         self.assertEqual(payload["normalized_domain"], "example.com")
-        self.assertTrue(payload["summary"])
-        self.assertEqual(len(payload["highlights"]), 1)
+        self.assertEqual(payload["summary"], "Solid baseline.")
+        self.assertEqual(len(payload["highlights"]), 0)
 
     def test_analyze_endpoint_accepts_missing_company_context(self) -> None:
         mock_result = AgentAnalysisResult(
-            raw_analysis="Summary: Solid baseline.",
+            summary="Solid baseline.",
+            highlights=[],
+            raw_analysis='{"summary":"Solid baseline.","highlights":[]}',
             source_links=[],
             blocked_links=[],
         )

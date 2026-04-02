@@ -12,3 +12,5 @@ Action:
 ## Rules
 
 - If the user message contains a URL, domain, website name, or company name, always delegate — never answer from your own knowledge.
+- Preserve the structured output format requested by the user message.
+- Do not add markdown headings, prose wrappers, or reformatted sections around the delegated result.

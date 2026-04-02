@@ -12,8 +12,6 @@ from api.schemas import ErrorResponse
 from api.services.analysis_service import run_terms_analysis
 from api.services.analysis_service import validate_input_url
 from api.services.formatter import build_confidence_notes
-from api.services.formatter import build_highlights
-from api.services.formatter import build_summary
 
 app = FastAPI(
     title="Legal Scout API",
@@ -54,13 +52,11 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
         ) from exc
 
     parsed = urlparse(normalized_url)
-    highlights = build_highlights(result.raw_analysis)
-
     return AnalyzeResponse(
         input_url=normalized_url,
         normalized_domain=parsed.netloc,
-        summary=build_summary(result.raw_analysis),
-        highlights=highlights,
+        summary=result.summary,
+        highlights=result.highlights,
         source_links=result.source_links,
         blocked_links=result.blocked_links,
         confidence_notes=build_confidence_notes(result.raw_analysis, result.blocked_links),

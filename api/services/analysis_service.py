@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import ipaddress
+import json
 from dataclasses import dataclass
+from dataclasses import field
+from json import JSONDecodeError
 from urllib.parse import urlparse
 from uuid import uuid4
 
@@ -12,16 +15,58 @@ from google.adk.runners import Runner
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.adk.utils.context_utils import Aclosing
 from google.genai import types
+from pydantic import BaseModel
+from pydantic import Field
+from pydantic import ValidationError
 
+from api.schemas import ClauseHighlight
 from legal_scout import root_agent
 from legal_scout.tools.find_terms_from_homepage import find_terms_from_homepage
 
 
 @dataclass
 class AgentAnalysisResult:
+    summary: str
     raw_analysis: str
-    source_links: list[str]
-    blocked_links: list[str]
+    highlights: list[ClauseHighlight] = field(default_factory=list)
+    source_links: list[str] = field(default_factory=list)
+    blocked_links: list[str] = field(default_factory=list)
+
+
+class StructuredAgentOutput(BaseModel):
+    summary: str = Field(min_length=1)
+    highlights: list[ClauseHighlight] = Field(default_factory=list)
+
+
+def parse_structured_analysis(raw_text: str) -> StructuredAgentOutput:
+    cleaned = raw_text.strip()
+    if not cleaned:
+        raise ValueError("Empty analysis response.")
+
+    if cleaned.startswith("```"):
+        lines = cleaned.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        cleaned = "\n".join(lines).strip()
+
+    start_index = cleaned.find("{")
+    end_index = cleaned.rfind("}")
+    if start_index == -1 or end_index == -1 or end_index < start_index:
+        raise ValueError("Structured analysis JSON object not found.")
+
+    json_payload = cleaned[start_index : end_index + 1]
+
+    try:
+        parsed = json.loads(json_payload)
+    except JSONDecodeError as exc:
+        raise ValueError("Structured analysis JSON could not be decoded.") from exc
+
+    try:
+        return StructuredAgentOutput.model_validate(parsed)
+    except ValidationError as exc:
+        raise ValueError("Structured analysis JSON did not match expected schema.") from exc
 
 
 def build_analysis_prompt(url: str, company_context: str | None = None) -> str:
@@ -43,10 +88,21 @@ def build_analysis_prompt(url: str, company_context: str | None = None) -> str:
     prompt_lines.extend(
         [
             "",
-            "Return:",
-            "1. A concise summary",
-            "2. Key clause highlights",
-            "3. Risks especially relevant to the company context if provided",
+            "Return only a valid JSON object. Do not include markdown, headings, commentary, or code fences.",
+            "Use this exact schema:",
+            "{",
+            '  "summary": "One concise paragraph summarizing the most important contractual points.",',
+            '  "highlights": [',
+            "    {",
+            '      "title": "Short clause name",',
+            '      "rationale": "Why this clause matters, with emphasis on the provided company context when relevant.",',
+            '      "risk_level": "low"',
+            "    }",
+            "  ]",
+            "}",
+            "Allowed risk_level values: low, medium, high, unknown.",
+            "If no reliable terms were found, set summary to explain that clearly and return an empty highlights array.",
+            "Limit highlights to the most important clauses only.",
         ]
     )
 
@@ -124,7 +180,11 @@ async def run_terms_analysis(url: str, company_context: str | None = None) -> Ag
     if not final_text:
         raise RuntimeError("No analysis text was returned by the agent.")
 
+    structured = parse_structured_analysis(final_text)
+
     return AgentAnalysisResult(
+        summary=structured.summary,
+        highlights=structured.highlights,
         raw_analysis=final_text,
         source_links=source_links,
         blocked_links=blocked_links,
