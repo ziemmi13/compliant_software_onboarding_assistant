@@ -28,6 +28,8 @@ htmlcov/
 build/
 dist/
 *.egg-info/
+node_modules/
+*.tsbuildinfo
 
 # IDE and OS files
 .vscode/
