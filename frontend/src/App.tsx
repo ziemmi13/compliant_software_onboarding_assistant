@@ -13,6 +13,7 @@ type AnalysisResults = {
 };
 
 type ResultTab = "terms" | "dpa";
+type ViewMode = "input" | "review";
 
 const CONTEXT_PRESETS = [
   {
@@ -96,6 +97,7 @@ export default function App() {
   const [url, setUrl] = useState("");
   const [companyContext, setCompanyContext] = useState("");
   const [reviewSelection, setReviewSelection] = useState<ReviewSelection>({ terms: true, dpa: true });
+  const [viewMode, setViewMode] = useState<ViewMode>("input");
   const [loading, setLoading] = useState(false);
   const [loadingStageIndex, setLoadingStageIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -162,6 +164,10 @@ export default function App() {
 
       setResults(nextResults);
 
+      if (nextResults.terms || nextResults.dpa) {
+        setViewMode("review");
+      }
+
       if (failures.length > 0) {
         setError(failures.join(" "));
       }
@@ -178,6 +184,13 @@ export default function App() {
 
   const toggleReviewType = (reviewType: keyof ReviewSelection) => {
     setReviewSelection((current) => ({ ...current, [reviewType]: !current[reviewType] }));
+    setError(null);
+    setResults({ terms: null, dpa: null });
+    setViewMode("input");
+  };
+
+  const returnToSetup = () => {
+    setViewMode("input");
     setError(null);
     setResults({ terms: null, dpa: null });
   };
@@ -430,11 +443,13 @@ export default function App() {
     );
   };
 
+  const showReviewScreen = viewMode === "review" && hasResults;
+
   return (
     <main className="page-shell">
       <div className="page-orb page-orb-left" />
       <div className="page-orb page-orb-right" />
-      <main className="page">
+      <main className={showReviewScreen ? "page page-review" : "page"}>
         <header className="topbar">
           <div className="brand-lockup" aria-label="COMPL.AI">
             <img className="topbar-logo" src="/comp_ai-logo.png" alt="Comp AI" />
@@ -535,6 +550,54 @@ export default function App() {
                   );
                 })}
               </ol>
+            </section>
+          </section>
+        ) : showReviewScreen ? (
+          <section className="review-shell">
+            <div className="review-shell-header">
+              <div className="review-shell-copy">
+                <p className="section-kicker">Review ready</p>
+                <h1 className="review-shell-title">{targetHost ?? "Analysis report"}</h1>
+                <p className="review-shell-body">
+                  Switch between the completed review modules below, or go back to refine the software, URL, and context.
+                </p>
+              {availableTabs.length > 1 && (
+                <div className="results-tablist results-tablist-header" role="tablist" aria-label="Result sections">
+                  {results.terms && (
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={visibleResultTab === "terms"}
+                      className={visibleResultTab === "terms" ? "results-tab results-tab-active" : "results-tab"}
+                      onClick={() => setActiveResultTab("terms")}
+                    >
+                      <span>T&amp;C</span>
+                      <strong>High {termsRiskCounts?.high ?? 0}</strong>
+                    </button>
+                  )}
+                  {results.dpa && (
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={visibleResultTab === "dpa"}
+                      className={visibleResultTab === "dpa" ? "results-tab results-tab-active" : "results-tab"}
+                      onClick={() => setActiveResultTab("dpa")}
+                    >
+                      <span>DPA</span>
+                      <strong>Missing {dpaChecklistCounts?.missing ?? 0}</strong>
+                    </button>
+                  )}
+                </div>
+              )}
+              </div>
+              <button type="button" className="review-back-button" onClick={returnToSetup}>
+                Back to setup
+              </button>
+            </div>
+
+            <section className="results results-stack">
+
+              {visibleResultTab === "terms" ? renderTermsPanel() : renderDpaPanel()}
             </section>
           </section>
         ) : (
@@ -638,43 +701,6 @@ export default function App() {
               </section>
             </section>
           </>
-        )}
-
-        {hasResults && !loading && (
-          <section className="results results-stack">
-            {availableTabs.length > 1 && (
-              <div className="results-toolbar">
-                <div className="results-tablist" role="tablist" aria-label="Result sections">
-                  {results.terms && (
-                    <button
-                      type="button"
-                      role="tab"
-                      aria-selected={visibleResultTab === "terms"}
-                      className={visibleResultTab === "terms" ? "results-tab results-tab-active" : "results-tab"}
-                      onClick={() => setActiveResultTab("terms")}
-                    >
-                      <span>T&amp;C</span>
-                      <strong>High {termsRiskCounts?.high ?? 0}</strong>
-                    </button>
-                  )}
-                  {results.dpa && (
-                    <button
-                      type="button"
-                      role="tab"
-                      aria-selected={visibleResultTab === "dpa"}
-                      className={visibleResultTab === "dpa" ? "results-tab results-tab-active" : "results-tab"}
-                      onClick={() => setActiveResultTab("dpa")}
-                    >
-                      <span>DPA</span>
-                      <strong>Missing {dpaChecklistCounts?.missing ?? 0}</strong>
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {visibleResultTab === "terms" ? renderTermsPanel() : renderDpaPanel()}
-          </section>
         )}
       </main>
     </main>
