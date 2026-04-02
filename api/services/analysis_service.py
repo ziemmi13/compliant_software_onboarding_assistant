@@ -20,6 +20,7 @@ from pydantic import Field
 from pydantic import ValidationError
 
 from api.schemas import ClauseHighlight
+from api.schemas import RiskLevel
 from legal_scout import root_agent
 from legal_scout.tools.find_terms_from_homepage import find_terms_from_homepage
 
@@ -36,6 +37,21 @@ class AgentAnalysisResult:
 class StructuredAgentOutput(BaseModel):
     summary: str = Field(min_length=1)
     highlights: list[ClauseHighlight] = Field(default_factory=list)
+
+
+_RISK_PRIORITY = {
+    RiskLevel.HIGH: 0,
+    RiskLevel.MEDIUM: 1,
+    RiskLevel.LOW: 2,
+    RiskLevel.UNKNOWN: 3,
+}
+
+
+def sort_highlights_by_severity(highlights: list[ClauseHighlight]) -> list[ClauseHighlight]:
+    return sorted(
+        highlights,
+        key=lambda highlight: _RISK_PRIORITY.get(highlight.risk_level, _RISK_PRIORITY[RiskLevel.UNKNOWN]),
+    )
 
 
 def parse_structured_analysis(raw_text: str) -> StructuredAgentOutput:
@@ -64,9 +80,12 @@ def parse_structured_analysis(raw_text: str) -> StructuredAgentOutput:
         raise ValueError("Structured analysis JSON could not be decoded.") from exc
 
     try:
-        return StructuredAgentOutput.model_validate(parsed)
+        structured = StructuredAgentOutput.model_validate(parsed)
     except ValidationError as exc:
         raise ValueError("Structured analysis JSON did not match expected schema.") from exc
+
+    structured.highlights = sort_highlights_by_severity(structured.highlights)
+    return structured
 
 
 def build_analysis_prompt(url: str, company_context: str | None = None) -> str:
