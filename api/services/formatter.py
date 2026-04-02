@@ -9,11 +9,19 @@ from api.schemas import RiskLevel
 _BULLET_PATTERN = re.compile(r"^(?:[-*]|\d+\.)\s+(.+)$")
 _HEADING_PREFIX_PATTERN = re.compile(r"^(?:summary|overview|analysis)\s*:\s*", re.IGNORECASE)
 _MARKDOWN_EMPHASIS_PATTERN = re.compile(r"\*{1,2}([^*]+)\*{1,2}")
+_SECTION_HEADING_PATTERN = re.compile(
+    r"^(?:\d+\.?\s*)?(?:concise\s+summary|summary|overview|analysis|key\s+highlights?)\s*:?$",
+    re.IGNORECASE,
+)
 
 
 def _clean_inline_markdown(text: str) -> str:
     text = _MARKDOWN_EMPHASIS_PATTERN.sub(r"\1", text)
     return text.replace("`", "").strip()
+
+
+def _is_structural_heading(text: str) -> bool:
+    return bool(_SECTION_HEADING_PATTERN.fullmatch(text.strip()))
 
 
 def _infer_risk_level(text: str) -> RiskLevel:
@@ -32,10 +40,16 @@ def build_summary(raw_analysis: str) -> str:
     if not cleaned:
         return "No summary generated."
 
-    first_paragraph = cleaned.split("\n\n", maxsplit=1)[0].strip()
-    first_paragraph = _HEADING_PREFIX_PATTERN.sub("", first_paragraph).strip()
-    first_paragraph = _clean_inline_markdown(first_paragraph)
-    return first_paragraph or "No summary generated."
+    paragraphs = [segment.strip() for segment in cleaned.split("\n\n") if segment.strip()]
+
+    for paragraph in paragraphs:
+        candidate = _HEADING_PREFIX_PATTERN.sub("", paragraph).strip()
+        candidate = _clean_inline_markdown(candidate)
+        if not candidate or _is_structural_heading(candidate):
+            continue
+        return candidate
+
+    return "No summary generated."
 
 
 def build_highlights(raw_analysis: str) -> list[ClauseHighlight]:
