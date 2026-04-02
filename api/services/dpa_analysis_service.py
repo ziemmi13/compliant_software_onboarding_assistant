@@ -20,7 +20,7 @@ from pydantic import ValidationError
 
 from api.schemas import DpaChecklistItem
 from api.schemas import DpaChecklistStatus
-from legal_scout.sub_agents.dpa_agent.agent import dpa_agent
+from legal_scout.agents.dpa_agent import dpa_agent
 from legal_scout.tools.find_dpa_from_homepage import find_dpa_from_homepage
 
 

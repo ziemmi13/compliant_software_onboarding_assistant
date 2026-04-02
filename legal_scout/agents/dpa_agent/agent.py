@@ -8,7 +8,7 @@ _INSTRUCTION = (Path(__file__).parent / "dpa_agent.md").read_text(encoding="utf-
 dpa_agent = Agent(
     model="gemini-2.5-flash",
     name="dpa_agent",
-    description="A sub-agent for reviewing data processing agreements and annexes.",
+    description="An agent for reviewing data processing agreements and annexes.",
     instruction=_INSTRUCTION,
     tools=[google_search],
 )

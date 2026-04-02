@@ -21,7 +21,7 @@ from pydantic import ValidationError
 
 from api.schemas import ClauseHighlight
 from api.schemas import RiskLevel
-from legal_scout import root_agent
+from legal_scout.agents.terms_agent import terms_agent
 from legal_scout.tools.find_terms_from_homepage import find_terms_from_homepage
 
 
@@ -227,7 +227,7 @@ async def run_terms_analysis(url: str, company_context: str | None = None) -> Ag
     source_links = discovered.get("valid", [])
     blocked_links = discovered.get("blocked", [])
 
-    app = App(name="legal_scout_web", root_agent=root_agent)
+    app = App(name="legal_scout_web", root_agent=terms_agent)
     session_service = InMemorySessionService()
     runner = Runner(
         app=app,
@@ -256,7 +256,7 @@ async def run_terms_analysis(url: str, company_context: str | None = None) -> Ag
                 if not event.content or not event.content.parts:
                     continue
 
-                if event.author != "root_agent" or not event.is_final_response():
+                if event.author != "terms_agent" or not event.is_final_response():
                     continue
 
                 text_parts = [part.text or "" for part in event.content.parts if part.text]
