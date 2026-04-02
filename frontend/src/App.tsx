@@ -611,42 +611,6 @@ export default function App() {
               </button>
             </div>
 
-            <section className="review-overview" aria-label="Review overview">
-              {results.terms && (
-                <button
-                  type="button"
-                  className={visibleResultTab === "terms" ? "overview-card overview-card-active" : "overview-card"}
-                  onClick={() => setActiveResultTab("terms")}
-                >
-                  <span className="overview-card-kicker">T&amp;C</span>
-                  <strong className="overview-card-title">Business terms review</strong>
-                  <div className="overview-card-metrics">
-                    <span>High {termsRiskCounts?.high ?? 0}</span>
-                    <span>Medium {termsRiskCounts?.medium ?? 0}</span>
-                    <span>Sources {results.terms.source_links.length}</span>
-                  </div>
-                  <p className="overview-card-copy">{getTermsCoverageLabel(results.terms)}</p>
-                </button>
-              )}
-
-              {results.dpa && (
-                <button
-                  type="button"
-                  className={visibleResultTab === "dpa" ? "overview-card overview-card-dpa overview-card-active" : "overview-card overview-card-dpa"}
-                  onClick={() => setActiveResultTab("dpa")}
-                >
-                  <span className="overview-card-kicker">DPA</span>
-                  <strong className="overview-card-title">Processor obligations review</strong>
-                  <div className="overview-card-metrics">
-                    <span>Missing {dpaChecklistCounts?.missing ?? 0}</span>
-                    <span>Partial {dpaChecklistCounts?.partial ?? 0}</span>
-                    <span>Sources {results.dpa.source_links.length}</span>
-                  </div>
-                  <p className="overview-card-copy">{getDpaCoverageLabel(results.dpa)}</p>
-                </button>
-              )}
-            </section>
-
             <section className="results results-stack">
 
               {visibleResultTab === "terms" ? renderTermsPanel() : renderDpaPanel()}
