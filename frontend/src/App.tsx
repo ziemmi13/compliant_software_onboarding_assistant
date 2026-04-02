@@ -2,8 +2,15 @@ import { FormEvent, useEffect, useState } from "react";
 
 import { AnalyzeResponse, DpaAnalyzeResponse, DpaChecklistItem, analyzeDpaUrl, analyzeUrl } from "./api";
 
-type AnalysisType = "terms" | "dpa";
-type AnalysisResult = AnalyzeResponse | DpaAnalyzeResponse;
+type ReviewSelection = {
+  terms: boolean;
+  dpa: boolean;
+};
+
+type AnalysisResults = {
+  terms: AnalyzeResponse | null;
+  dpa: DpaAnalyzeResponse | null;
+};
 
 const CONTEXT_PRESETS = [
   {
@@ -63,22 +70,34 @@ function countChecklistByStatus(result: DpaAnalyzeResponse) {
   );
 }
 
-function isDpaResult(result: AnalysisResult | null): result is DpaAnalyzeResponse {
-  return Boolean(result && "checklist" in result);
-}
-
 function getChecklistStatusLabel(item: DpaChecklistItem) {
   return item.status.replace("_", " ");
 }
 
+function hasAnySelection(selection: ReviewSelection) {
+  return selection.terms || selection.dpa;
+}
+
+function getSelectionLabel(selection: ReviewSelection) {
+  if (selection.terms && selection.dpa) {
+    return "T&C and DPA";
+  }
+
+  if (selection.dpa) {
+    return "DPA";
+  }
+
+  return "T&C";
+}
+
 export default function App() {
-  const [analysisType, setAnalysisType] = useState<AnalysisType>("terms");
   const [url, setUrl] = useState("");
   const [companyContext, setCompanyContext] = useState("");
+  const [reviewSelection, setReviewSelection] = useState<ReviewSelection>({ terms: true, dpa: true });
   const [loading, setLoading] = useState(false);
   const [loadingStageIndex, setLoadingStageIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [results, setResults] = useState<AnalysisResults>({ terms: null, dpa: null });
 
   useEffect(() => {
     if (!loading) {
@@ -101,16 +120,47 @@ export default function App() {
       return;
     }
 
+    if (!hasAnySelection(reviewSelection)) {
+      setError("Select at least one review type.");
+      return;
+    }
+
     setLoading(true);
     setError(null);
-    setResult(null);
+    setResults({ terms: null, dpa: null });
 
     try {
-      const analysis =
-        analysisType === "dpa"
-          ? await analyzeDpaUrl(url.trim(), companyContext)
-          : await analyzeUrl(url.trim(), companyContext);
-      setResult(analysis);
+      const jobs = [
+        reviewSelection.terms
+          ? analyzeUrl(url.trim(), companyContext).then((analysis) => ({ kind: "terms" as const, analysis }))
+          : null,
+        reviewSelection.dpa
+          ? analyzeDpaUrl(url.trim(), companyContext).then((analysis) => ({ kind: "dpa" as const, analysis }))
+          : null,
+      ].filter(Boolean) as Array<Promise<{ kind: "terms" | "dpa"; analysis: AnalyzeResponse | DpaAnalyzeResponse }>>;
+
+      const settled = await Promise.allSettled(jobs);
+      const nextResults: AnalysisResults = { terms: null, dpa: null };
+      const failures: string[] = [];
+
+      settled.forEach((item) => {
+        if (item.status === "fulfilled") {
+          if (item.value.kind === "terms") {
+            nextResults.terms = item.value.analysis as AnalyzeResponse;
+          } else {
+            nextResults.dpa = item.value.analysis as DpaAnalyzeResponse;
+          }
+          return;
+        }
+
+        failures.push(item.reason instanceof Error ? item.reason.message : "Unknown error.");
+      });
+
+      setResults(nextResults);
+
+      if (failures.length > 0) {
+        setError(failures.join(" "));
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error.");
     } finally {
@@ -122,10 +172,10 @@ export default function App() {
     setCompanyContext(value);
   };
 
-  const changeAnalysisType = (nextType: AnalysisType) => {
-    setAnalysisType(nextType);
+  const toggleReviewType = (reviewType: keyof ReviewSelection) => {
+    setReviewSelection((current) => ({ ...current, [reviewType]: !current[reviewType] }));
     setError(null);
-    setResult(null);
+    setResults({ terms: null, dpa: null });
   };
 
   const currentLoadingStage = LOADING_STAGES[loadingStageIndex];
@@ -139,24 +189,21 @@ export default function App() {
   })();
   const reviewModeTitle =
     targetHost
-      ? analysisType === "dpa"
-        ? `Reviewing DPA for ${targetHost}`
-        : `Reviewing ${targetHost}`
-      : analysisType === "dpa"
-        ? "Reviewing your DPA submission"
-        : "Reviewing your submission";
+      ? `Reviewing ${getSelectionLabel(reviewSelection)} for ${targetHost}`
+      : `Reviewing your ${getSelectionLabel(reviewSelection)} submission`;
 
-  const riskCounts = result && !isDpaResult(result) ? countHighlightsByRisk(result) : null;
-  const checklistCounts = result && isDpaResult(result) ? countChecklistByStatus(result) : null;
-  const coverageLabel = result
-    ? result.blocked_links.length > 0
-      ? result.source_links.length > 0
-        ? "Partial"
-        : "Blocked"
-      : result.source_links.length > 0
-        ? "Good"
-        : "Limited"
-    : null;
+  const termsRiskCounts = results.terms ? countHighlightsByRisk(results.terms) : null;
+  const dpaChecklistCounts = results.dpa ? countChecklistByStatus(results.dpa) : null;
+
+  const getCoverageLabel = (sourceLinks: string[], blockedLinks: string[]) => {
+    if (blockedLinks.length > 0) {
+      return sourceLinks.length > 0 ? "Partial" : "Blocked";
+    }
+
+    return sourceLinks.length > 0 ? "Good" : "Limited";
+  };
+
+  const hasResults = Boolean(results.terms || results.dpa);
 
   return (
     <main className="page-shell">
@@ -191,9 +238,11 @@ export default function App() {
               </div>
               <h1 className="review-mode-heading">{reviewModeTitle}</h1>
               <p className="review-mode-body">
-                {analysisType === "dpa"
-                  ? "COMPL.AI is reviewing the DPA package and linked annexes before generating an Article 28 checklist."
-                  : "COMPL.AI is running a focused legal intake pass before generating the final summary and ranked highlights."}
+                {reviewSelection.terms && reviewSelection.dpa
+                  ? "COMPL.AI is running both the contractual review and the DPA review before assembling the combined report."
+                  : reviewSelection.dpa
+                    ? "COMPL.AI is reviewing the DPA package and linked annexes before generating an Article 28 checklist."
+                    : "COMPL.AI is running a focused legal intake pass before generating the final summary and ranked highlights."}
               </p>
 
               <div className="review-mode-notes">
@@ -204,9 +253,11 @@ export default function App() {
                 <article className="review-mode-note">
                   <strong>Output</strong>
                   <p>
-                    {analysisType === "dpa"
-                      ? "Preparing a structured Article 28 checklist with cited privacy control findings."
-                      : "Preparing a concise summary and issue list for business review."}
+                    {reviewSelection.terms && reviewSelection.dpa
+                      ? "Preparing a combined report with ranked T&C issues and a cited DPA checklist."
+                      : reviewSelection.dpa
+                        ? "Preparing a structured Article 28 checklist with cited privacy control findings."
+                        : "Preparing a concise summary and issue list for business review."}
                   </p>
                 </article>
                 <article className="review-mode-note">
@@ -265,11 +316,9 @@ export default function App() {
           <>
             <header className="hero">
               <div className="hero-copy">
-                <h1>{analysisType === "dpa" ? "Data Processing Agreement Review" : "Compliant Software Onboarding"}</h1>
+                <h1>Compliant Software Onboarding</h1>
                 <p className="hero-body">
-                  {analysisType === "dpa"
-                    ? "Review a vendor DPA against Article 28-style processor obligations in minutes."
-                    : "Screen any software in minutes, not hours."}
+                  Choose whether to review T&amp;C, DPA, or both in a single submission.
                 </p>
               </div>
             </header>
@@ -282,25 +331,37 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="analysis-type-switch" role="tablist" aria-label="Review type">
-                  <button
-                    type="button"
-                    className={analysisType === "terms" ? "analysis-type-pill analysis-type-pill-active" : "analysis-type-pill"}
-                    onClick={() => changeAnalysisType("terms")}
-                  >
-                    T&amp;C Review
-                  </button>
-                  <button
-                    type="button"
-                    className={analysisType === "dpa" ? "analysis-type-pill analysis-type-pill-active" : "analysis-type-pill"}
-                    onClick={() => changeAnalysisType("dpa")}
-                  >
-                    DPA Review
-                  </button>
-                </div>
+                <fieldset className="review-type-group">
+                  <legend>Select reviews</legend>
+                  <p className="field-note">Pick one or both review types. The system only runs the items you check.</p>
+                  <div className="review-type-switch" role="group" aria-label="Review type">
+                    <label className={reviewSelection.terms ? "review-type-card review-type-card-selected" : "review-type-card"}>
+                      <input
+                        type="checkbox"
+                        checked={reviewSelection.terms}
+                        onChange={() => toggleReviewType("terms")}
+                      />
+                      <span>
+                        <strong>T&amp;C Review</strong>
+                        <small>Terms, platform obligations, liability, and commercial risk.</small>
+                      </span>
+                    </label>
+                    <label className={reviewSelection.dpa ? "review-type-card review-type-card-selected" : "review-type-card"}>
+                      <input
+                        type="checkbox"
+                        checked={reviewSelection.dpa}
+                        onChange={() => toggleReviewType("dpa")}
+                      />
+                      <span>
+                        <strong>DPA Review</strong>
+                        <small>Article 28 processor obligations, annexes, and privacy controls.</small>
+                      </span>
+                    </label>
+                  </div>
+                </fieldset>
 
                 <form onSubmit={onSubmit} className="form">
-                  <label htmlFor="url">{analysisType === "dpa" ? "Website or DPA URL" : "Website URL"}</label>
+                  <label htmlFor="url">Website or legal document URL</label>
                   <div className="row">
                     <input
                       id="url"
@@ -340,12 +401,10 @@ export default function App() {
                   </div>
                 </form>
 
-                {!result && !error && (
+                {!hasResults && !error && (
                   <div className="inline-note">
                     <p>
-                      {analysisType === "dpa"
-                        ? "Enter a DPA URL or vendor website and optional company context to generate an Article 28 checklist with linked evidence."
-                        : "Enter a target URL and optional company context to generate a concise compliance brief with ranked contractual risks."}
+                      Enter a vendor website or legal URL and optional company context. Both T&amp;C and DPA are selected by default.
                     </p>
                   </div>
                 )}
@@ -356,130 +415,203 @@ export default function App() {
           </>
         )}
 
-        {result && !loading && (
-          <section className="results">
-            <section className="results-topbar simple-topbar">
-              <div>
-                <p className="section-kicker">Analysis brief</p>
-                <h2>{result.normalized_domain}</h2>
-              </div>
-              <div className="topbar-metrics compact-metrics">
-                {!isDpaResult(result) ? (
-                  <span className="topbar-pill topbar-pill-high">High {riskCounts?.high ?? 0}</span>
-                ) : (
-                  <>
-                    <span className="topbar-pill topbar-pill-high">Missing {checklistCounts?.missing ?? 0}</span>
-                    <span className="topbar-pill">Partial {checklistCounts?.partial ?? 0}</span>
-                    <span className="topbar-pill">Satisfied {checklistCounts?.satisfied ?? 0}</span>
-                  </>
-                )}
-                <span className="topbar-pill">Coverage {coverageLabel}</span>
-                <span className="topbar-pill">Sources {result.source_links.length}</span>
-                {result.blocked_links.length > 0 && <span className="topbar-pill">Blocked {result.blocked_links.length}</span>}
-              </div>
-            </section>
-
-            <div className="results-primary">
-              <article className="card summary-card narrative-card">
-                <div className="card-header">
-                  <h2>{isDpaResult(result) ? "DPA Summary" : "T&C Summary"}</h2>
-                </div>
-                <p className="summary-copy">{result.summary}</p>
-              </article>
-
-              <article className="card highlights-card narrative-card">
-                <div className="card-header">
-                  <h2>{isDpaResult(result) ? "Article 28 Checklist" : "Key Highlights"}</h2>
-                </div>
-                {!isDpaResult(result) ? result.highlights.length === 0 ? (
-                  <p>No highlights were extracted.</p>
-                ) : (
-                  <ul className="highlights editorial-highlights">
-                    {result.highlights.map((item, index) => (
-                      <li key={`${item.title}-${index}`} className={`highlight-card highlight-card-${item.risk_level}`}>
-                        <div className="title-row">
-                          <strong>{item.title}</strong>
-                          <span className={`risk risk-${item.risk_level}`}>{item.risk_level}</span>
-                        </div>
-                        <p>{item.rationale}</p>
-                        {item.source_url && (
-                          <p className="highlight-source">
-                            Source:{" "}
-                            <a href={item.source_url} target="_blank" rel="noreferrer">
-                              {item.source_url}
-                            </a>
-                          </p>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                ) : result.checklist.length === 0 ? (
-                  <p>No checklist items were extracted.</p>
-                ) : (
-                  <ul className="highlights editorial-highlights dpa-checklist">
-                    {result.checklist.map((item) => (
-                      <li key={item.requirement_key} className={`highlight-card dpa-checklist-item dpa-checklist-item-${item.status}`}>
-                        <div className="title-row">
-                          <strong>{item.requirement_title}</strong>
-                          <span className={`check-status check-status-${item.status}`}>{getChecklistStatusLabel(item)}</span>
-                        </div>
-                        <p>{item.rationale}</p>
-                        {item.source_url && (
-                          <p className="highlight-source">
-                            Source:{" "}
-                            <a href={item.source_url} target="_blank" rel="noreferrer">
-                              {item.source_url}
-                            </a>
-                          </p>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </article>
-
-              <article className="card evidence-card narrative-card">
-                <div className="card-header">
-                  <h2>Evidence &amp; Coverage</h2>
-                </div>
-
-                {result.confidence_notes.length > 0 && (
-                  <div className="coverage-note">
-                    {result.confidence_notes.map((note) => (
-                      <p key={note}>{note}</p>
-                    ))}
+        {hasResults && !loading && (
+          <section className="results results-stack">
+            {results.terms && (
+              <section className="result-block">
+                <section className="results-topbar simple-topbar">
+                  <div>
+                    <p className="section-kicker">T&amp;C brief</p>
+                    <h2>{results.terms.normalized_domain}</h2>
                   </div>
-                )}
-
-                <div className="evidence-section">
-                  <h3>Source links</h3>
-                  {result.source_links.length === 0 ? (
-                    <p className="muted-copy">No source links were confirmed.</p>
-                  ) : (
-                    <ul className="source-list">
-                      {result.source_links.map((link) => (
-                        <li key={link}>
-                          <a href={link} target="_blank" rel="noreferrer">
-                            {link}
-                          </a>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-
-                {result.blocked_links.length > 0 && (
-                  <div className="evidence-section">
-                    <h3>Blocked links</h3>
-                    <ul className="blocked-list">
-                      {result.blocked_links.map((link) => (
-                        <li key={link}>{link}</li>
-                      ))}
-                    </ul>
+                  <div className="topbar-metrics compact-metrics">
+                    <span className="topbar-pill topbar-pill-high">High {termsRiskCounts?.high ?? 0}</span>
+                    <span className="topbar-pill">Coverage {getCoverageLabel(results.terms.source_links, results.terms.blocked_links)}</span>
+                    <span className="topbar-pill">Sources {results.terms.source_links.length}</span>
+                    {results.terms.blocked_links.length > 0 && <span className="topbar-pill">Blocked {results.terms.blocked_links.length}</span>}
                   </div>
-                )}
-              </article>
-            </div>
+                </section>
+
+                <div className="results-primary">
+                  <article className="card summary-card narrative-card">
+                    <div className="card-header">
+                      <h2>T&amp;C Summary</h2>
+                    </div>
+                    <p className="summary-copy">{results.terms.summary}</p>
+                  </article>
+
+                  <article className="card highlights-card narrative-card">
+                    <div className="card-header">
+                      <h2>Key Highlights</h2>
+                    </div>
+                    {results.terms.highlights.length === 0 ? (
+                      <p>No highlights were extracted.</p>
+                    ) : (
+                      <ul className="highlights editorial-highlights">
+                        {results.terms.highlights.map((item, index) => (
+                          <li key={`${item.title}-${index}`} className={`highlight-card highlight-card-${item.risk_level}`}>
+                            <div className="title-row">
+                              <strong>{item.title}</strong>
+                              <span className={`risk risk-${item.risk_level}`}>{item.risk_level}</span>
+                            </div>
+                            <p>{item.rationale}</p>
+                            {item.source_url && (
+                              <p className="highlight-source">
+                                Source:{" "}
+                                <a href={item.source_url} target="_blank" rel="noreferrer">
+                                  {item.source_url}
+                                </a>
+                              </p>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </article>
+
+                  <article className="card evidence-card narrative-card">
+                    <div className="card-header">
+                      <h2>Evidence &amp; Coverage</h2>
+                    </div>
+
+                    {results.terms.confidence_notes.length > 0 && (
+                      <div className="coverage-note">
+                        {results.terms.confidence_notes.map((note) => (
+                          <p key={note}>{note}</p>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="evidence-section">
+                      <h3>Source links</h3>
+                      {results.terms.source_links.length === 0 ? (
+                        <p className="muted-copy">No source links were confirmed.</p>
+                      ) : (
+                        <ul className="source-list">
+                          {results.terms.source_links.map((link) => (
+                            <li key={link}>
+                              <a href={link} target="_blank" rel="noreferrer">
+                                {link}
+                              </a>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+
+                    {results.terms.blocked_links.length > 0 && (
+                      <div className="evidence-section">
+                        <h3>Blocked links</h3>
+                        <ul className="blocked-list">
+                          {results.terms.blocked_links.map((link) => (
+                            <li key={link}>{link}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </article>
+                </div>
+              </section>
+            )}
+
+            {results.dpa && (
+              <section className="result-block">
+                <section className="results-topbar simple-topbar">
+                  <div>
+                    <p className="section-kicker">DPA brief</p>
+                    <h2>{results.dpa.normalized_domain}</h2>
+                  </div>
+                  <div className="topbar-metrics compact-metrics">
+                    <span className="topbar-pill topbar-pill-high">Missing {dpaChecklistCounts?.missing ?? 0}</span>
+                    <span className="topbar-pill">Partial {dpaChecklistCounts?.partial ?? 0}</span>
+                    <span className="topbar-pill">Satisfied {dpaChecklistCounts?.satisfied ?? 0}</span>
+                    <span className="topbar-pill">Coverage {getCoverageLabel(results.dpa.source_links, results.dpa.blocked_links)}</span>
+                    <span className="topbar-pill">Sources {results.dpa.source_links.length}</span>
+                    {results.dpa.blocked_links.length > 0 && <span className="topbar-pill">Blocked {results.dpa.blocked_links.length}</span>}
+                  </div>
+                </section>
+
+                <div className="results-primary">
+                  <article className="card summary-card narrative-card">
+                    <div className="card-header">
+                      <h2>DPA Summary</h2>
+                    </div>
+                    <p className="summary-copy">{results.dpa.summary}</p>
+                  </article>
+
+                  <article className="card highlights-card narrative-card">
+                    <div className="card-header">
+                      <h2>Article 28 Checklist</h2>
+                    </div>
+                    {results.dpa.checklist.length === 0 ? (
+                      <p>No checklist items were extracted.</p>
+                    ) : (
+                      <ul className="highlights editorial-highlights dpa-checklist">
+                        {results.dpa.checklist.map((item) => (
+                          <li key={item.requirement_key} className={`highlight-card dpa-checklist-item dpa-checklist-item-${item.status}`}>
+                            <div className="title-row">
+                              <strong>{item.requirement_title}</strong>
+                              <span className={`check-status check-status-${item.status}`}>{getChecklistStatusLabel(item)}</span>
+                            </div>
+                            <p>{item.rationale}</p>
+                            {item.source_url && (
+                              <p className="highlight-source">
+                                Source:{" "}
+                                <a href={item.source_url} target="_blank" rel="noreferrer">
+                                  {item.source_url}
+                                </a>
+                              </p>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </article>
+
+                  <article className="card evidence-card narrative-card">
+                    <div className="card-header">
+                      <h2>Evidence &amp; Coverage</h2>
+                    </div>
+
+                    {results.dpa.confidence_notes.length > 0 && (
+                      <div className="coverage-note">
+                        {results.dpa.confidence_notes.map((note) => (
+                          <p key={note}>{note}</p>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="evidence-section">
+                      <h3>Source links</h3>
+                      {results.dpa.source_links.length === 0 ? (
+                        <p className="muted-copy">No source links were confirmed.</p>
+                      ) : (
+                        <ul className="source-list">
+                          {results.dpa.source_links.map((link) => (
+                            <li key={link}>
+                              <a href={link} target="_blank" rel="noreferrer">
+                                {link}
+                              </a>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+
+                    {results.dpa.blocked_links.length > 0 && (
+                      <div className="evidence-section">
+                        <h3>Blocked links</h3>
+                        <ul className="blocked-list">
+                          {results.dpa.blocked_links.map((link) => (
+                            <li key={link}>{link}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </article>
+                </div>
+              </section>
+            )}
           </section>
         )}
       </main>

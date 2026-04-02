@@ -261,36 +261,70 @@ body {
   color: #6a5a3c;
 }
 
-.analysis-type-switch {
+.review-type-switch {
   display: flex;
   flex-wrap: wrap;
   gap: 0.65rem;
   margin-bottom: 1rem;
 }
 
-.analysis-type-pill {
-  padding: 0.72rem 0.95rem;
-  border-radius: 999px;
+.review-type-group {
+  margin: 0 0 1rem;
+  padding: 1rem;
+  border: 1px solid rgba(0, 33, 71, 0.1);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.56);
+}
+
+.review-type-group legend {
+  padding: 0 0.45rem;
+  font-weight: 800;
+  color: var(--navy);
+}
+
+.review-type-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  min-width: min(100%, 18rem);
+  padding: 0.9rem 1rem;
   border: 1px solid rgba(0, 33, 71, 0.12);
+  border-radius: 16px;
   background: rgba(255, 255, 255, 0.82);
-  color: var(--navy);
-  font-size: 0.82rem;
-  font-weight: 700;
-  box-shadow: none;
+  cursor: pointer;
+  transition: border-color 140ms ease, background-color 140ms ease, transform 140ms ease;
 }
 
-.analysis-type-pill:hover:not(:disabled) {
-  background: rgba(0, 33, 71, 0.06);
-  color: var(--navy-soft);
-  box-shadow: none;
-  transform: translateY(-1px);
-  filter: none;
-}
-
-.analysis-type-pill-active {
+.review-type-card:hover {
   border-color: rgba(0, 33, 71, 0.2);
-  background: rgba(0, 33, 71, 0.08);
+  background: #fffdf8;
+  transform: translateY(-1px);
+}
+
+.review-type-card-selected {
+  border-color: rgba(0, 33, 71, 0.24);
+  background: rgba(0, 33, 71, 0.06);
+}
+
+.review-type-card input {
+  margin-top: 0.18rem;
+  flex: 0 0 auto;
+}
+
+.review-type-card span {
+  display: grid;
+  gap: 0.28rem;
+}
+
+.review-type-card strong {
   color: var(--navy);
+  font-size: 0.96rem;
+}
+
+.review-type-card small {
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
 }
 
 .form {
@@ -431,6 +465,16 @@ button:disabled {
   margin-top: 1.1rem;
   padding-top: 1rem;
   border-top: 1px solid rgba(19, 32, 43, 0.08);
+}
+
+.results-stack {
+  display: grid;
+  gap: 2rem;
+}
+
+.result-block {
+  display: grid;
+  gap: 1rem;
 }
 
 .review-mode {
