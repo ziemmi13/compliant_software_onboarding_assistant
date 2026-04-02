@@ -76,29 +76,31 @@ export default function App() {
 
       {result && (
         <section className="results">
-          <article className="card">
-            <h2>Executive summary</h2>
-            <p>{result.summary}</p>
-          </article>
+          <div className="results-primary">
+            <article className="card dialog-card">
+              <h2>T&amp;C Summary</h2>
+              <p>{result.summary}</p>
+            </article>
 
-          <article className="card">
-            <h2>Clause highlights</h2>
-            {result.highlights.length === 0 ? (
-              <p>No highlights were extracted.</p>
-            ) : (
-              <ul className="highlights">
-                {result.highlights.map((item, index) => (
-                  <li key={`${item.title}-${index}`}>
-                    <div className="title-row">
-                      <strong>{item.title}</strong>
-                      <span className={`risk risk-${item.risk_level}`}>{item.risk_level}</span>
-                    </div>
-                    <p>{item.rationale}</p>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </article>
+            <article className="card dialog-card">
+              <h2>Key Highlights</h2>
+              {result.highlights.length === 0 ? (
+                <p>No highlights were extracted.</p>
+              ) : (
+                <ul className="highlights">
+                  {result.highlights.map((item, index) => (
+                    <li key={`${item.title}-${index}`}>
+                      <div className="title-row">
+                        <strong>{item.title}</strong>
+                        <span className={`risk risk-${item.risk_level}`}>{item.risk_level}</span>
+                      </div>
+                      <p>{item.rationale}</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </article>
+          </div>
 
           <article className="card">
             <h2>Source links</h2>

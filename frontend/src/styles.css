@@ -116,8 +116,22 @@ button:disabled {
   margin-top: 1rem;
 }
 
+.results-primary {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .card {
   padding: 1rem 1.2rem;
+}
+
+.dialog-card {
+  min-height: 100%;
+}
+
+.dialog-card h2 {
+  margin-top: 0;
 }
 
 .highlights {
@@ -166,6 +180,10 @@ a {
 @media (max-width: 640px) {
   .row {
     flex-direction: column;
+  }
+
+  .results-primary {
+    grid-template-columns: 1fr;
   }
 
   button {

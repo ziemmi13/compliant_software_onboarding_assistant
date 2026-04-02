@@ -12,6 +12,11 @@ class FormatterTests(unittest.TestCase):
         summary = build_summary(raw)
         self.assertEqual(summary, "This policy has moderate data sharing terms.")
 
+    def test_build_summary_strips_inline_markdown(self) -> None:
+        raw = "**Terms and Conditions Analysis for Champify.io (Mirantis Context)**\n\nMore details follow."
+        summary = build_summary(raw)
+        self.assertEqual(summary, "Terms and Conditions Analysis for Champify.io (Mirantis Context)")
+
     def test_build_highlights_extracts_bullets_and_risk(self) -> None:
         raw = "- Liability: high risk limitation of liability language"
         highlights = build_highlights(raw)

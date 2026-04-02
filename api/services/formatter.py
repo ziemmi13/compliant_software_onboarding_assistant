@@ -8,6 +8,12 @@ from api.schemas import RiskLevel
 
 _BULLET_PATTERN = re.compile(r"^(?:[-*]|\d+\.)\s+(.+)$")
 _HEADING_PREFIX_PATTERN = re.compile(r"^(?:summary|overview|analysis)\s*:\s*", re.IGNORECASE)
+_MARKDOWN_EMPHASIS_PATTERN = re.compile(r"\*{1,2}([^*]+)\*{1,2}")
+
+
+def _clean_inline_markdown(text: str) -> str:
+    text = _MARKDOWN_EMPHASIS_PATTERN.sub(r"\1", text)
+    return text.replace("`", "").strip()
 
 
 def _infer_risk_level(text: str) -> RiskLevel:
@@ -28,6 +34,7 @@ def build_summary(raw_analysis: str) -> str:
 
     first_paragraph = cleaned.split("\n\n", maxsplit=1)[0].strip()
     first_paragraph = _HEADING_PREFIX_PATTERN.sub("", first_paragraph).strip()
+    first_paragraph = _clean_inline_markdown(first_paragraph)
     return first_paragraph or "No summary generated."
 
 
