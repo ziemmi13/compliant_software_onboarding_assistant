@@ -665,7 +665,7 @@ export default function App() {
                 </fieldset>
 
                 <form onSubmit={onSubmit} className="form">
-                  <label htmlFor="url">Website or legal document URL</label>
+                  <label htmlFor="url">Insert URL</label>
                   <p className="field-note field-note-tight">
                     Paste a homepage, terms page, or DPA link. The app will follow the relevant legal surface from there.
                   </p>
