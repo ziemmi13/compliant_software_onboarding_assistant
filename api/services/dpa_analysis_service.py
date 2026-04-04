@@ -30,6 +30,7 @@ class DpaAnalysisResult:
     raw_analysis: str
     checklist: list[DpaChecklistItem] = field(default_factory=list)
     source_links: list[str] = field(default_factory=list)
+    supporting_links: list[str] = field(default_factory=list)
     blocked_links: list[str] = field(default_factory=list)
     confidence_notes: list[str] = field(default_factory=list)
 
@@ -94,6 +95,39 @@ def validate_dpa_checklist_sources(
         )
 
     return validated_items, notes
+
+
+def extract_supporting_links_from_grounding(
+    grounding_metadata: types.GroundingMetadata | None,
+    source_links: list[str],
+) -> list[str]:
+    if not grounding_metadata or not grounding_metadata.grounding_chunks:
+        return []
+
+    normalized_sources = {_normalize_citation_url(link) for link in source_links}
+    supporting_links: list[str] = []
+    seen_links: set[str] = set()
+
+    for chunk in grounding_metadata.grounding_chunks:
+        candidates = []
+        if chunk.web and chunk.web.uri:
+            candidates.append(chunk.web.uri)
+        if chunk.retrieved_context and chunk.retrieved_context.uri:
+            candidates.append(chunk.retrieved_context.uri)
+
+        for candidate in candidates:
+            try:
+                normalized_candidate = _normalize_citation_url(candidate)
+            except ValueError:
+                continue
+
+            if normalized_candidate in normalized_sources or normalized_candidate in seen_links:
+                continue
+
+            seen_links.add(normalized_candidate)
+            supporting_links.append(normalized_candidate)
+
+    return supporting_links
 
 
 def parse_structured_dpa_analysis(raw_text: str) -> StructuredDpaOutput:
@@ -209,6 +243,7 @@ async def run_dpa_analysis(url: str, company_context: str | None = None) -> DpaA
     discovered = find_dpa_from_homepage(url)
     source_links = discovered.get("valid", [])
     blocked_links = discovered.get("blocked", [])
+    supporting_links: list[str] = []
 
     app = App(name="legal_scout_dpa_web", root_agent=dpa_agent)
     session_service = InMemorySessionService()
@@ -232,6 +267,10 @@ async def run_dpa_analysis(url: str, company_context: str | None = None) -> DpaA
             runner.run_async(user_id=user_id, session_id=session_id, new_message=content)
         ) as event_stream:
             async for event in event_stream:
+                for link in extract_supporting_links_from_grounding(event.grounding_metadata, source_links):
+                    if link not in supporting_links:
+                        supporting_links.append(link)
+
                 if not event.content or not event.content.parts:
                     continue
 
@@ -256,6 +295,7 @@ async def run_dpa_analysis(url: str, company_context: str | None = None) -> DpaA
         checklist=validated_checklist,
         raw_analysis=final_text,
         source_links=source_links,
+        supporting_links=supporting_links,
         blocked_links=blocked_links,
         confidence_notes=confidence_notes,
     )

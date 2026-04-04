@@ -1268,12 +1268,50 @@ button:disabled {
   font-size: 0.98rem;
 }
 
+.evidence-section {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.evidence-section-card {
+  padding: 1rem 1.05rem;
+  border: 1px solid rgba(0, 33, 71, 0.08);
+  border-radius: 18px;
+  background: rgba(248, 247, 242, 0.62);
+}
+
 .source-list,
 .blocked-list {
   margin: 0;
   padding-left: 1rem;
   display: grid;
   gap: 0.55rem;
+}
+
+.evidence-link-list {
+  padding: 0;
+  list-style: none;
+}
+
+.evidence-link-list li {
+  margin: 0;
+  padding: 0.78rem 0.88rem;
+  border: 1px solid rgba(0, 33, 71, 0.08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.evidence-link-list a {
+  display: inline-block;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.blocked-link-list li {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 a {

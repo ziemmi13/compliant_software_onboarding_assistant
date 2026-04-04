@@ -58,6 +58,7 @@ class DpaAnalyzeResponse(BaseModel):
     summary: str
     checklist: list[DpaChecklistItem] = Field(default_factory=list)
     source_links: list[str] = Field(default_factory=list)
+    supporting_links: list[str] = Field(default_factory=list)
     blocked_links: list[str] = Field(default_factory=list)
     confidence_notes: list[str] = Field(default_factory=list)
     raw_analysis: str

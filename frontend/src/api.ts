@@ -33,6 +33,7 @@ export interface DpaAnalyzeResponse {
   summary: string;
   checklist: DpaChecklistItem[];
   source_links: string[];
+  supporting_links: string[];
   blocked_links: string[];
   confidence_notes: string[];
   raw_analysis: string;

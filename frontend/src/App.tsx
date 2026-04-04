@@ -128,7 +128,12 @@ function hasTermsAnswer(result: AnalyzeResponse) {
 }
 
 function hasDpaAnswer(result: DpaAnalyzeResponse) {
-  return result.checklist.length > 0;
+  return (
+    result.checklist.length > 0 ||
+    result.summary.trim().length > 0 ||
+    result.supporting_links.length > 0 ||
+    result.source_links.length > 0
+  );
 }
 
 function shouldRetryModuleError(error: unknown) {
@@ -503,6 +508,7 @@ export default function App() {
             <span className="topbar-pill topbar-pill-satisfied">Satisfied {dpaChecklistCounts?.satisfied ?? 0}</span>
             <span className="topbar-pill topbar-pill-coverage">Coverage {getCoverageLabel(results.dpa.source_links, results.dpa.blocked_links)}</span>
             <span className="topbar-pill topbar-pill-sources">Sources {results.dpa.source_links.length}</span>
+            {results.dpa.supporting_links.length > 0 && <span className="topbar-pill topbar-pill-sources">Support {results.dpa.supporting_links.length}</span>}
             {results.dpa.blocked_links.length > 0 && <span className="topbar-pill topbar-pill-blocked">Blocked {results.dpa.blocked_links.length}</span>}
           </div>
         </section>
@@ -557,12 +563,16 @@ export default function App() {
               </div>
             )}
 
-            <div className="evidence-section">
+            <div className="evidence-section evidence-section-card">
               <h3>Source links</h3>
               {results.dpa.source_links.length === 0 ? (
-                <p className="muted-copy">No source links were confirmed.</p>
+                <p className="muted-copy">
+                  {results.dpa.supporting_links.length > 0
+                    ? "No confirmed DPA page was found."
+                    : "No source links were confirmed."}
+                </p>
               ) : (
-                <ul className="source-list">
+                <ul className="source-list evidence-link-list">
                   {results.dpa.source_links.map((link) => (
                     <li key={link}>
                       <a href={link} target="_blank" rel="noreferrer">
@@ -573,6 +583,22 @@ export default function App() {
                 </ul>
               )}
             </div>
+
+            {results.dpa.supporting_links.length > 0 && (
+              <div className="evidence-section">
+                <h3>Supporting links</h3>
+                <p className="muted-copy">Related pages used during search, separated from confirmed DPA sources.</p>
+                <ul className="source-list">
+                  {results.dpa.supporting_links.map((link) => (
+                    <li key={link}>
+                      <a href={link} target="_blank" rel="noreferrer">
+                        {link}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {results.dpa.blocked_links.length > 0 && (
               <div className="evidence-section">
@@ -651,7 +677,7 @@ export default function App() {
                       ? "Preparing a combined report with ranked T&C issues and a cited DPA checklist."
                       : reviewSelection.dpa
                         ? "Preparing a structured Article 28 checklist with cited privacy control findings."
-                        : "Preparing a concise summary and issue list for business review."}
+                        : "Preparing a concise T&C report with ranked issues and linked source pages."}
                   </p>
                 </article>
                 <article className="review-mode-note">

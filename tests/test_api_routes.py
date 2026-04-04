@@ -88,6 +88,7 @@ class ApiRouteTests(unittest.TestCase):
             ],
             raw_analysis='{"summary":"Solid DPA baseline.","checklist":[{"requirement_key":"breach_notification","requirement_title":"Breach notification timing","status":"satisfied","rationale":"The DPA requires notice within 36 hours.","source_url":"https://example.com/legal/data-processing-agreement"}]}',
             source_links=["https://example.com/legal/data-processing-agreement"],
+            supporting_links=["https://example.com/privacy"],
             blocked_links=[],
         )
 
@@ -106,6 +107,7 @@ class ApiRouteTests(unittest.TestCase):
         self.assertEqual(len(payload["checklist"]), 1)
         self.assertEqual(payload["checklist"][0]["status"], "satisfied")
         self.assertEqual(payload["checklist"][0]["source_url"], "https://example.com/legal/data-processing-agreement")
+        self.assertEqual(payload["supporting_links"], ["https://example.com/privacy"])
 
 
 if __name__ == "__main__":
