@@ -19,6 +19,18 @@
   box-sizing: border-box;
 }
 
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 body {
   margin: 0;
   color: var(--ink);
@@ -638,24 +650,26 @@ button:disabled {
 }
 
 .results-tab {
-  display: grid;
-  gap: 0.2rem;
-  min-width: 12rem;
-  padding: 0.95rem 1rem;
-  border: 1px solid rgba(0, 33, 71, 0.1);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.8);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 5.25rem;
+  padding: 0.35rem 0.2rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: var(--navy);
-  text-align: left;
+  text-align: center;
   box-shadow: none;
+  opacity: 0.74;
 }
 
 .results-tab span {
-  font-size: 0.76rem;
+  font-size: 0.8rem;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  opacity: 0.8;
+  opacity: 1;
 }
 
 .results-tab strong {
@@ -663,9 +677,16 @@ button:disabled {
   letter-spacing: -0.01em;
 }
 
+.results-tab small {
+  font-size: 0.8rem;
+  color: var(--muted);
+  letter-spacing: 0.01em;
+}
+
 .results-tab-active {
-  border-color: rgba(0, 33, 71, 0.24);
-  background: linear-gradient(180deg, rgba(0, 33, 71, 0.11), rgba(255, 255, 255, 0.92));
+  background: transparent;
+  opacity: 1;
+  box-shadow: inset 0 -2px 0 var(--navy);
 }
 
 .result-block {
@@ -826,6 +847,13 @@ button:disabled {
   line-height: 1.7;
 }
 
+.review-note-live {
+  margin: 0.6rem 0 0;
+  color: var(--navy-soft);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
 .review-progress {
   margin-top: 1rem;
 }
@@ -837,11 +865,21 @@ button:disabled {
   background: rgba(0, 33, 71, 0.09);
 }
 
+.review-progress-track-indeterminate {
+  background: rgba(0, 33, 71, 0.13);
+}
+
 .review-progress-fill {
   height: 100%;
   border-radius: inherit;
   background: linear-gradient(90deg, var(--navy) 0%, var(--accent) 100%);
   transition: width 420ms ease;
+}
+
+.review-progress-fill-indeterminate {
+  width: 38%;
+  animation: review-progress-sweep 1.5s ease-in-out infinite;
+  will-change: transform;
 }
 
 .review-progress-meta {
@@ -879,6 +917,10 @@ button:disabled {
   background: rgba(0, 33, 71, 0.07);
   color: var(--ink);
   box-shadow: 0 10px 24px rgba(0, 33, 71, 0.08);
+}
+
+.review-step-current-pending {
+  box-shadow: 0 10px 24px rgba(0, 33, 71, 0.08), inset 0 0 0 1px rgba(176, 154, 114, 0.28);
 }
 
 .review-step-complete {
@@ -929,6 +971,23 @@ button:disabled {
   color: inherit;
 }
 
+@keyframes review-progress-sweep {
+  0% {
+    transform: translateX(-115%);
+  }
+
+  100% {
+    transform: translateX(310%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .review-progress-fill-indeterminate {
+    animation: none;
+    width: 62%;
+  }
+}
+
 .results {
   display: grid;
   gap: 1rem;
@@ -953,6 +1012,41 @@ button:disabled {
 .topbar-pill-high {
   background: rgba(158, 43, 37, 0.09);
   color: #7f241f;
+}
+
+.topbar-pill-medium {
+  background: rgba(199, 130, 63, 0.15);
+  color: #855900;
+}
+
+.topbar-pill-low {
+  background: rgba(34, 98, 29, 0.14);
+  color: #22621d;
+}
+
+.topbar-pill-partial {
+  background: rgba(199, 130, 63, 0.15);
+  color: #855900;
+}
+
+.topbar-pill-satisfied {
+  background: rgba(34, 98, 29, 0.14);
+  color: #22621d;
+}
+
+.topbar-pill-coverage {
+  background: rgba(0, 33, 71, 0.11);
+  color: #123864;
+}
+
+.topbar-pill-sources {
+  background: rgba(68, 84, 91, 0.14);
+  color: #44545b;
+}
+
+.topbar-pill-blocked {
+  background: rgba(112, 128, 144, 0.2);
+  color: #3f4c55;
 }
 
 .simple-topbar {

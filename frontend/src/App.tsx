@@ -53,6 +53,8 @@ const LOADING_STAGES = [
   },
 ];
 
+const FINAL_STAGE_SLOW_THRESHOLD_SECONDS = 8;
+
 function countHighlightsByRisk(result: AnalyzeResponse) {
   return result.highlights.reduce(
     (counts, item) => {
@@ -116,6 +118,7 @@ export default function App() {
   const [viewMode, setViewMode] = useState<ViewMode>("input");
   const [loading, setLoading] = useState(false);
   const [loadingStageIndex, setLoadingStageIndex] = useState(0);
+  const [loadingElapsedSeconds, setLoadingElapsedSeconds] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<AnalysisResults>({ terms: null, dpa: null });
   const [activeResultTab, setActiveResultTab] = useState<ResultTab>("terms");
@@ -126,9 +129,27 @@ export default function App() {
       return undefined;
     }
 
+    setLoadingStageIndex(0);
+
     const intervalId = window.setInterval(() => {
       setLoadingStageIndex((current) => Math.min(current + 1, LOADING_STAGES.length - 1));
     }, 1400);
+
+    return () => window.clearInterval(intervalId);
+  }, [loading]);
+
+  useEffect(() => {
+    if (!loading) {
+      setLoadingElapsedSeconds(0);
+      return undefined;
+    }
+
+    const startedAt = Date.now();
+    setLoadingElapsedSeconds(0);
+    const intervalId = window.setInterval(() => {
+      const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+      setLoadingElapsedSeconds(elapsed);
+    }, 1000);
 
     return () => window.clearInterval(intervalId);
   }, [loading]);
@@ -212,7 +233,14 @@ export default function App() {
   };
 
   const currentLoadingStage = LOADING_STAGES[loadingStageIndex];
-  const loadingProgress = ((loadingStageIndex + 1) / LOADING_STAGES.length) * 100;
+  const isFinalLoadingStage = loading && loadingStageIndex === LOADING_STAGES.length - 1;
+  const finalStageHasExtendedRun = isFinalLoadingStage && loadingElapsedSeconds >= FINAL_STAGE_SLOW_THRESHOLD_SECONDS;
+  const loadingProgress = isFinalLoadingStage
+    ? ((LOADING_STAGES.length - 1) / LOADING_STAGES.length) * 100
+    : ((loadingStageIndex + 1) / LOADING_STAGES.length) * 100;
+  const loadingDetail = isFinalLoadingStage
+    ? "Prioritizing findings across contractual, compliance, and operational impact before finalizing the report."
+    : currentLoadingStage.detail;
   const targetHost = (() => {
     try {
       return url.trim() ? new URL(url.trim()).host : null;
@@ -259,15 +287,13 @@ export default function App() {
     return (
       <section className="result-block">
         <section className="results-topbar simple-topbar">
-          <div>
-            <p className="section-kicker">T&amp;C brief</p>
-            <h2>{results.terms.normalized_domain}</h2>
-          </div>
           <div className="topbar-metrics compact-metrics">
             <span className="topbar-pill topbar-pill-high">High {termsRiskCounts?.high ?? 0}</span>
-            <span className="topbar-pill">Coverage {getCoverageLabel(results.terms.source_links, results.terms.blocked_links)}</span>
-            <span className="topbar-pill">Sources {results.terms.source_links.length}</span>
-            {results.terms.blocked_links.length > 0 && <span className="topbar-pill">Blocked {results.terms.blocked_links.length}</span>}
+            <span className="topbar-pill topbar-pill-medium">Medium {termsRiskCounts?.medium ?? 0}</span>
+            <span className="topbar-pill topbar-pill-low">Low {termsRiskCounts?.low ?? 0}</span>
+            <span className="topbar-pill topbar-pill-coverage">Coverage {getCoverageLabel(results.terms.source_links, results.terms.blocked_links)}</span>
+            <span className="topbar-pill topbar-pill-sources">Sources {results.terms.source_links.length}</span>
+            {results.terms.blocked_links.length > 0 && <span className="topbar-pill topbar-pill-blocked">Blocked {results.terms.blocked_links.length}</span>}
           </div>
         </section>
 
@@ -362,17 +388,13 @@ export default function App() {
     return (
       <section className="result-block">
         <section className="results-topbar simple-topbar">
-          <div>
-            <p className="section-kicker">DPA brief</p>
-            <h2>{results.dpa.normalized_domain}</h2>
-          </div>
           <div className="topbar-metrics compact-metrics">
             <span className="topbar-pill topbar-pill-high">Missing {dpaChecklistCounts?.missing ?? 0}</span>
-            <span className="topbar-pill">Partial {dpaChecklistCounts?.partial ?? 0}</span>
-            <span className="topbar-pill">Satisfied {dpaChecklistCounts?.satisfied ?? 0}</span>
-            <span className="topbar-pill">Coverage {getCoverageLabel(results.dpa.source_links, results.dpa.blocked_links)}</span>
-            <span className="topbar-pill">Sources {results.dpa.source_links.length}</span>
-            {results.dpa.blocked_links.length > 0 && <span className="topbar-pill">Blocked {results.dpa.blocked_links.length}</span>}
+            <span className="topbar-pill topbar-pill-partial">Partial {dpaChecklistCounts?.partial ?? 0}</span>
+            <span className="topbar-pill topbar-pill-satisfied">Satisfied {dpaChecklistCounts?.satisfied ?? 0}</span>
+            <span className="topbar-pill topbar-pill-coverage">Coverage {getCoverageLabel(results.dpa.source_links, results.dpa.blocked_links)}</span>
+            <span className="topbar-pill topbar-pill-sources">Sources {results.dpa.source_links.length}</span>
+            {results.dpa.blocked_links.length > 0 && <span className="topbar-pill topbar-pill-blocked">Blocked {results.dpa.blocked_links.length}</span>}
           </div>
         </section>
 
@@ -486,7 +508,7 @@ export default function App() {
           </nav>
         </header>
         {loading ? (
-          <section className="review-mode" aria-live="polite" aria-busy="true">
+          <section className="review-mode" aria-busy="true">
             <div className="review-mode-copy">
               <div className="review-mode-meta">
                 <span className="review-mode-pill">Active analysis</span>
@@ -524,6 +546,11 @@ export default function App() {
             </div>
 
             <section className="review-status review-status-immersive">
+              <p className="visually-hidden" role="status" aria-live="polite" aria-atomic="true">
+                {isFinalLoadingStage
+                  ? "Final prioritization step is in progress."
+                  : `${currentLoadingStage.title} is in progress.`}
+              </p>
               <div className="review-status-header">
                 <div>
                   <p className="section-kicker review-kicker">Review in progress</p>
@@ -534,15 +561,36 @@ export default function App() {
                 </span>
               </div>
 
-              <p className="review-copy">{currentLoadingStage.detail}</p>
+              <p className="review-copy">{loadingDetail}</p>
+              {isFinalLoadingStage ? (
+                <p className="review-note-live">
+                  This final prioritization pass usually takes longer than discovery and clause extraction.
+                  {finalStageHasExtendedRun ? " We are still processing and validating severity ordering." : ""}
+                </p>
+              ) : null}
 
               <div className="review-progress" aria-hidden="true">
-                <div className="review-progress-track">
-                  <div className="review-progress-fill" style={{ width: `${loadingProgress}%` }} />
+                <div
+                  className={
+                    isFinalLoadingStage
+                      ? "review-progress-track review-progress-track-indeterminate"
+                      : "review-progress-track"
+                  }
+                >
+                  <div
+                    className={
+                      isFinalLoadingStage
+                        ? "review-progress-fill review-progress-fill-indeterminate"
+                        : "review-progress-fill"
+                    }
+                    style={isFinalLoadingStage ? undefined : { width: `${loadingProgress}%` }}
+                  />
                 </div>
                 <div className="review-progress-meta">
-                  <span>Automated legal review</span>
-                  {targetHost ? <span>{targetHost}</span> : <span>Preparing source scan</span>}
+                  <span>{isFinalLoadingStage ? "Prioritization in progress" : "Automated legal review"}</span>
+                  <span>
+                    {targetHost ? `${targetHost} - ${loadingElapsedSeconds}s elapsed` : `${loadingElapsedSeconds}s elapsed`}
+                  </span>
                 </div>
               </div>
 
@@ -552,7 +600,9 @@ export default function App() {
                     index < loadingStageIndex
                       ? "review-step review-step-complete"
                       : index === loadingStageIndex
-                        ? "review-step review-step-current"
+                        ? isFinalLoadingStage
+                          ? "review-step review-step-current review-step-current-pending"
+                          : "review-step review-step-current"
                         : "review-step";
 
                   return (
@@ -584,11 +634,11 @@ export default function App() {
                       type="button"
                       role="tab"
                       aria-selected={visibleResultTab === "terms"}
+                      aria-label="Show T and C results"
                       className={visibleResultTab === "terms" ? "results-tab results-tab-active" : "results-tab"}
                       onClick={() => setActiveResultTab("terms")}
                     >
                       <span>T&amp;C</span>
-                      <strong>High {termsRiskCounts?.high ?? 0}</strong>
                     </button>
                   )}
                   {results.dpa && (
@@ -596,11 +646,11 @@ export default function App() {
                       type="button"
                       role="tab"
                       aria-selected={visibleResultTab === "dpa"}
+                      aria-label="Show D P A results"
                       className={visibleResultTab === "dpa" ? "results-tab results-tab-active" : "results-tab"}
                       onClick={() => setActiveResultTab("dpa")}
                     >
                       <span>DPA</span>
-                      <strong>Missing {dpaChecklistCounts?.missing ?? 0}</strong>
                     </button>
                   )}
                 </div>
