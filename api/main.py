@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from pathlib import Path
 from urllib.parse import urlparse
 
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,6 +16,9 @@ from api.services.analysis_service import run_terms_analysis
 from api.services.analysis_service import validate_input_url
 from api.services.dpa_analysis_service import run_dpa_analysis
 from api.services.formatter import build_confidence_notes
+
+
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 app = FastAPI(
     title="Legal Scout API",

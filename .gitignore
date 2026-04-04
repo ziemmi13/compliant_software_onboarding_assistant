@@ -12,6 +12,7 @@ ENV/
 # Environment files and secrets
 .env
 .env.*
+!.env.template
 
 # ADK local state
 .adk/

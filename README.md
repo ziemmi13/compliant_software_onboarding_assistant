@@ -14,23 +14,19 @@ This project now includes:
 
 ## Gemini Configuration
 
-Create `legal_scout/.env` with:
+Copy `.env.template` to `.env` in the workspace root and set your real Gemini API key:
 
 ```dotenv
 GOOGLE_GENAI_USE_VERTEXAI=0
 GOOGLE_API_KEY=your_api_key_here
 ```
 
-Then load those variables in the shell before starting backend:
+The workspace is configured to use the root `.env` file as the Python env file for new terminals.
+
+The backend also loads the root `.env` file automatically on startup, so you can just run the server directly:
 
 ```powershell
-Get-Content legal_scout/.env | ForEach-Object {
-	if ($_ -match '^\s*#' -or $_ -match '^\s*$') { return }
-	$parts = $_ -split '=', 2
-	if ($parts.Length -eq 2) {
-		[Environment]::SetEnvironmentVariable($parts[0].Trim(), $parts[1].Trim(), 'Process')
-	}
-}
+python -m uvicorn api.main:app --reload --port 8000
 ```
 
 ## Backend
