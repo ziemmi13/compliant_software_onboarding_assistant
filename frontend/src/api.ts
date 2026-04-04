@@ -43,20 +43,40 @@ export interface ErrorResponse {
   details: string;
 }
 
+export class ApiRequestError extends Error {
+  code: string;
+  details: string;
+  status: number;
+
+  constructor(code: string, details: string, status = 0) {
+    super(`${code}: ${details}`);
+    this.name = "ApiRequestError";
+    this.code = code;
+    this.details = details;
+    this.status = status;
+  }
+}
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
 export async function analyzeUrl(url: string, companyContext?: string): Promise<AnalyzeResponse> {
   const trimmedContext = companyContext?.trim();
-  const response = await fetch(`${API_BASE_URL}/api/analyze`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      url,
-      company_context: trimmedContext || undefined,
-    }),
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}/api/analyze`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        url,
+        company_context: trimmedContext || undefined,
+      }),
+    });
+  } catch (error) {
+    throw new ApiRequestError("request_failed", error instanceof Error ? error.message : "Unexpected network error.");
+  }
 
   if (!response.ok) {
     let errorPayload: ErrorResponse = {
@@ -73,7 +93,7 @@ export async function analyzeUrl(url: string, companyContext?: string): Promise<
       // Keep fallback error payload.
     }
 
-    throw new Error(`${errorPayload.error}: ${errorPayload.details}`);
+    throw new ApiRequestError(errorPayload.error, errorPayload.details, response.status);
   }
 
   return response.json() as Promise<AnalyzeResponse>;
@@ -81,16 +101,22 @@ export async function analyzeUrl(url: string, companyContext?: string): Promise<
 
 export async function analyzeDpaUrl(url: string, companyContext?: string): Promise<DpaAnalyzeResponse> {
   const trimmedContext = companyContext?.trim();
-  const response = await fetch(`${API_BASE_URL}/api/analyze-dpa`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      url,
-      company_context: trimmedContext || undefined,
-    }),
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}/api/analyze-dpa`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        url,
+        company_context: trimmedContext || undefined,
+      }),
+    });
+  } catch (error) {
+    throw new ApiRequestError("request_failed", error instanceof Error ? error.message : "Unexpected network error.");
+  }
 
   if (!response.ok) {
     let errorPayload: ErrorResponse = {
@@ -107,7 +133,7 @@ export async function analyzeDpaUrl(url: string, companyContext?: string): Promi
       // Keep fallback error payload.
     }
 
-    throw new Error(`${errorPayload.error}: ${errorPayload.details}`);
+    throw new ApiRequestError(errorPayload.error, errorPayload.details, response.status);
   }
 
   return response.json() as Promise<DpaAnalyzeResponse>;

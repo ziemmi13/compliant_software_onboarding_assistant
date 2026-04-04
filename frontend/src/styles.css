@@ -489,6 +489,14 @@ button:disabled {
   margin-top: 0.8rem;
 }
 
+.review-error {
+  margin: 0;
+  padding: 0.95rem 1rem;
+  border: 1px solid rgba(158, 43, 37, 0.16);
+  border-radius: 16px;
+  background: rgba(255, 248, 247, 0.92);
+}
+
 .loading-stack,
 .empty-state {
   display: grid;

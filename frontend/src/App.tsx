@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 
-import { AnalyzeResponse, DpaAnalyzeResponse, DpaChecklistItem, analyzeDpaUrl, analyzeUrl } from "./api";
+import { AnalyzeResponse, ApiRequestError, DpaAnalyzeResponse, DpaChecklistItem, analyzeDpaUrl, analyzeUrl } from "./api";
 
 type ReviewSelection = {
   terms: boolean;
@@ -14,6 +14,14 @@ type AnalysisResults = {
 
 type ResultTab = "terms" | "dpa";
 type ViewMode = "input" | "review";
+type RetryPhase = "idle" | "retrying" | "retried-success" | "retried-failed";
+
+type RetryState = Record<ResultTab, RetryPhase>;
+
+type ModuleExecutionResult<T> = {
+  analysis: T | null;
+  errorMessage: string | null;
+};
 
 const CONTEXT_PRESETS = [
   {
@@ -36,6 +44,10 @@ const CONTEXT_PRESETS = [
     value:
       "HR technology company handling employee PII and payroll-adjacent workflows. Prioritize privacy, confidentiality, retention, subcontractors, and termination impacts.",
   },
+  {
+    label: "twoja stara",
+    value: "E-commerce platform selling vintage clothing. Concerned with data privacy, liability for counterfeit goods, uptime during peak sales, and termination rights if the service doesn't meet needs.",
+  }
 ];
 
 const LOADING_STAGES = [
@@ -111,6 +123,51 @@ function getDpaCoverageLabel(result: DpaAnalyzeResponse) {
   return result.source_links.length > 0 ? "Good coverage" : "Limited coverage";
 }
 
+function hasTermsAnswer(result: AnalyzeResponse) {
+  return result.highlights.length > 0;
+}
+
+function hasDpaAnswer(result: DpaAnalyzeResponse) {
+  return result.checklist.length > 0;
+}
+
+function shouldRetryModuleError(error: unknown) {
+  if (error instanceof ApiRequestError) {
+    return error.code !== "invalid_url" && error.status !== 400;
+  }
+
+  return true;
+}
+
+function formatModuleFailureMessage(kind: ResultTab, error: unknown, attemptedRetry: boolean) {
+  const moduleLabel = kind === "terms" ? "T&C" : "DPA";
+  const specificUrlHint = kind === "terms" ? "a direct terms URL" : "a direct DPA URL";
+
+  if (error instanceof ApiRequestError) {
+    if (error.code === "invalid_url") {
+      return "Please provide a valid http or https URL.";
+    }
+
+    if (attemptedRetry) {
+      return `${moduleLabel} analysis still failed after retry. Try ${specificUrlHint}.`;
+    }
+
+    return `${moduleLabel} analysis failed. Try again or use ${specificUrlHint}.`;
+  }
+
+  if (attemptedRetry) {
+    return `${moduleLabel} analysis still failed after retry. Try ${specificUrlHint}.`;
+  }
+
+  return `${moduleLabel} analysis failed. Try again or use ${specificUrlHint}.`;
+}
+
+function formatEmptyModuleMessage(kind: ResultTab) {
+  return kind === "terms"
+    ? "T&C analysis did not return an answer after retry. Try a direct terms URL."
+    : "DPA analysis did not return an answer after retry. Try a direct DPA URL.";
+}
+
 export default function App() {
   const activeRequestIdRef = useRef(0);
   const [url, setUrl] = useState("");
@@ -123,6 +180,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<AnalysisResults>({ terms: null, dpa: null });
   const [activeResultTab, setActiveResultTab] = useState<ResultTab>("terms");
+  const [retryState, setRetryState] = useState<RetryState>({ terms: "idle", dpa: "idle" });
 
   useEffect(() => {
     if (!loading) {
@@ -174,34 +232,67 @@ export default function App() {
     setLoading(true);
     setError(null);
     setResults({ terms: null, dpa: null });
+    setRetryState({ terms: "idle", dpa: "idle" });
     setActiveResultTab(reviewSelection.dpa && !reviewSelection.terms ? "dpa" : "terms");
 
     try {
-      const jobs = [
-        reviewSelection.terms
-          ? analyzeUrl(url.trim(), companyContext).then((analysis) => ({ kind: "terms" as const, analysis }))
-          : null,
-        reviewSelection.dpa
-          ? analyzeDpaUrl(url.trim(), companyContext).then((analysis) => ({ kind: "dpa" as const, analysis }))
-          : null,
-      ].filter(Boolean) as Array<Promise<{ kind: "terms" | "dpa"; analysis: AnalyzeResponse | DpaAnalyzeResponse }>>;
-
-      const settled = await Promise.allSettled(jobs);
-      const nextResults: AnalysisResults = { terms: null, dpa: null };
-      const failures: string[] = [];
-
-      settled.forEach((item) => {
-        if (item.status === "fulfilled") {
-          if (item.value.kind === "terms") {
-            nextResults.terms = item.value.analysis as AnalyzeResponse;
-          } else {
-            nextResults.dpa = item.value.analysis as DpaAnalyzeResponse;
+      const executeWithRetry = async <T,>(
+        kind: ResultTab,
+        run: () => Promise<T>,
+        hasAnswer: (result: T) => boolean
+      ): Promise<ModuleExecutionResult<T>> => {
+        try {
+          const analysis = await run();
+          if (hasAnswer(analysis)) {
+            return { analysis, errorMessage: null };
           }
-          return;
+        } catch (error) {
+          if (!shouldRetryModuleError(error)) {
+            return { analysis: null, errorMessage: formatModuleFailureMessage(kind, error, false) };
+          }
         }
 
-        failures.push(item.reason instanceof Error ? item.reason.message : "Unknown error.");
-      });
+        if (activeRequestIdRef.current === requestId) {
+          setRetryState((current) => ({ ...current, [kind]: "retrying" }));
+        }
+
+        try {
+          const retryAnalysis = await run();
+          if (hasAnswer(retryAnalysis)) {
+            if (activeRequestIdRef.current === requestId) {
+              setRetryState((current) => ({ ...current, [kind]: "retried-success" }));
+            }
+
+            return { analysis: retryAnalysis, errorMessage: null };
+          }
+
+          if (activeRequestIdRef.current === requestId) {
+            setRetryState((current) => ({ ...current, [kind]: "retried-failed" }));
+          }
+
+          return { analysis: null, errorMessage: formatEmptyModuleMessage(kind) };
+        } catch (retryError) {
+          if (activeRequestIdRef.current === requestId) {
+            setRetryState((current) => ({ ...current, [kind]: "retried-failed" }));
+          }
+
+          return { analysis: null, errorMessage: formatModuleFailureMessage(kind, retryError, true) };
+        }
+      };
+
+      const termsJob = reviewSelection.terms
+        ? executeWithRetry("terms", () => analyzeUrl(url.trim(), companyContext), hasTermsAnswer)
+        : Promise.resolve<ModuleExecutionResult<AnalyzeResponse>>({ analysis: null, errorMessage: null });
+      const dpaJob = reviewSelection.dpa
+        ? executeWithRetry("dpa", () => analyzeDpaUrl(url.trim(), companyContext), hasDpaAnswer)
+        : Promise.resolve<ModuleExecutionResult<DpaAnalyzeResponse>>({ analysis: null, errorMessage: null });
+
+      const [termsResult, dpaResult] = await Promise.all([termsJob, dpaJob]);
+      const nextResults: AnalysisResults = {
+        terms: termsResult.analysis,
+        dpa: dpaResult.analysis,
+      };
+      const failures = [termsResult.errorMessage, dpaResult.errorMessage].filter(Boolean) as string[];
 
       if (activeRequestIdRef.current !== requestId) {
         return;
@@ -246,6 +337,7 @@ export default function App() {
     setViewMode("input");
     setError(null);
     setResults({ terms: null, dpa: null });
+    setRetryState({ terms: "idle", dpa: "idle" });
   };
 
   const currentLoadingStage = LOADING_STAGES[loadingStageIndex];
@@ -283,6 +375,7 @@ export default function App() {
   const hasResults = Boolean(results.terms || results.dpa);
   const availableTabs: ResultTab[] = [results.terms ? "terms" : null, results.dpa ? "dpa" : null].filter(Boolean) as ResultTab[];
   const visibleResultTab = availableTabs.includes(activeResultTab) ? activeResultTab : availableTabs[0] ?? "terms";
+  const retryingModules = (Object.entries(retryState) as Array<[ResultTab, RetryPhase]>).filter(([, phase]) => phase === "retrying");
 
   useEffect(() => {
     if (results.terms && !results.dpa) {
@@ -585,6 +678,15 @@ export default function App() {
               </div>
 
               <p className="review-copy">{loadingDetail}</p>
+              {retryingModules.length > 0 ? (
+                <p className="review-note-live">
+                  {retryingModules.length === 2
+                    ? "Retrying both T&C and DPA analysis after no answer was returned."
+                    : retryingModules[0][0] === "terms"
+                      ? "Retrying T&C analysis after no answer was returned."
+                      : "Retrying DPA analysis after no answer was returned."}
+                </p>
+              ) : null}
               {isFinalLoadingStage ? (
                 <p className="review-note-live">
                   This final prioritization pass usually takes longer than discovery and clause extraction.
@@ -683,6 +785,8 @@ export default function App() {
                 Back to setup
               </button>
             </div>
+
+            {error ? <p className="error review-error">{error}</p> : null}
 
             <section className="results results-stack">
 
