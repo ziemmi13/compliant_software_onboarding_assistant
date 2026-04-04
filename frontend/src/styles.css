@@ -103,6 +103,19 @@ body {
   min-width: 0;
 }
 
+.brand-lockup-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.brand-lockup-button:focus-visible {
+  outline: 2px solid rgba(0, 33, 71, 0.34);
+  outline-offset: 6px;
+  border-radius: 8px;
+}
+
 .topbar-logo {
   display: block;
   width: clamp(132px, 15vw, 176px);

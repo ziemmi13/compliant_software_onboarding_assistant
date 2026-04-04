@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 
 import { AnalyzeResponse, DpaAnalyzeResponse, DpaChecklistItem, analyzeDpaUrl, analyzeUrl } from "./api";
 
@@ -112,6 +112,7 @@ function getDpaCoverageLabel(result: DpaAnalyzeResponse) {
 }
 
 export default function App() {
+  const activeRequestIdRef = useRef(0);
   const [url, setUrl] = useState("");
   const [companyContext, setCompanyContext] = useState("");
   const [reviewSelection, setReviewSelection] = useState<ReviewSelection>({ terms: true, dpa: true });
@@ -167,6 +168,9 @@ export default function App() {
       return;
     }
 
+    const requestId = activeRequestIdRef.current + 1;
+    activeRequestIdRef.current = requestId;
+
     setLoading(true);
     setError(null);
     setResults({ terms: null, dpa: null });
@@ -199,6 +203,10 @@ export default function App() {
         failures.push(item.reason instanceof Error ? item.reason.message : "Unknown error.");
       });
 
+      if (activeRequestIdRef.current !== requestId) {
+        return;
+      }
+
       setResults(nextResults);
 
       if (nextResults.terms || nextResults.dpa) {
@@ -209,9 +217,15 @@ export default function App() {
         setError(failures.join(" "));
       }
     } catch (err) {
+      if (activeRequestIdRef.current !== requestId) {
+        return;
+      }
+
       setError(err instanceof Error ? err.message : "Unknown error.");
     } finally {
-      setLoading(false);
+      if (activeRequestIdRef.current === requestId) {
+        setLoading(false);
+      }
     }
   };
 
@@ -227,6 +241,8 @@ export default function App() {
   };
 
   const returnToSetup = () => {
+    activeRequestIdRef.current += 1;
+    setLoading(false);
     setViewMode("input");
     setError(null);
     setResults({ terms: null, dpa: null });
@@ -482,6 +498,7 @@ export default function App() {
   };
 
   const showReviewScreen = viewMode === "review" && hasResults;
+  const showLogoHomeAction = loading || showReviewScreen;
 
   return (
     <main className="page-shell">
@@ -489,9 +506,15 @@ export default function App() {
       <div className="page-orb page-orb-right" />
       <main className={showReviewScreen ? "page page-review" : "page"}>
         <header className="topbar">
-          <div className="brand-lockup" aria-label="COMPL.AI">
-            <img className="topbar-logo" src="/comp_ai-logo.png" alt="Comp AI" />
-          </div>
+          {showLogoHomeAction ? (
+            <button type="button" className="brand-lockup brand-lockup-button" onClick={returnToSetup} aria-label="Return to front page">
+              <img className="topbar-logo" src="/comp_ai-logo.png" alt="Comp AI" />
+            </button>
+          ) : (
+            <div className="brand-lockup" aria-label="COMPL.AI">
+              <img className="topbar-logo" src="/comp_ai-logo.png" alt="Comp AI" />
+            </div>
+          )}
           <nav className="top-tabs" aria-label="Primary">
             <button type="button" className="top-tab top-tab-active">
               Overview
