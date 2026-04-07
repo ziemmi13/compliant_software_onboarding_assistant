@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from urllib.parse import urlparse
+import asyncio
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
@@ -12,10 +13,13 @@ from api.schemas import AnalyzeRequest
 from api.schemas import AnalyzeResponse
 from api.schemas import DpaAnalyzeResponse
 from api.schemas import ErrorResponse
+from api.schemas import LinkPreviewRequest
+from api.schemas import LinkPreviewResponse
 from api.services.analysis_service import run_terms_analysis
 from api.services.analysis_service import validate_input_url
 from api.services.dpa_analysis_service import run_dpa_analysis
 from api.services.formatter import build_confidence_notes
+from api.services.link_preview_service import fetch_link_previews
 
 
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
@@ -38,6 +42,19 @@ app.add_middleware(
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.post("/api/link-previews", response_model=LinkPreviewResponse, responses={500: {"model": ErrorResponse}})
+async def link_previews(request: LinkPreviewRequest) -> LinkPreviewResponse:
+    try:
+        previews = await asyncio.to_thread(fetch_link_previews, [str(url) for url in request.urls])
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail={"error": "preview_failed", "details": str(exc)},
+        ) from exc
+
+    return LinkPreviewResponse(previews=previews)
 
 
 @app.post("/api/analyze", response_model=AnalyzeResponse, responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}})

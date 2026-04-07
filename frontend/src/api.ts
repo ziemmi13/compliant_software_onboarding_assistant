@@ -39,6 +39,14 @@ export interface DpaAnalyzeResponse {
   raw_analysis: string;
 }
 
+export interface LinkPreview {
+  requested_url: string;
+  resolved_url: string;
+  title?: string | null;
+  hostname: string;
+  content_type?: string | null;
+}
+
 export interface ErrorResponse {
   error: string;
   details: string;
@@ -138,4 +146,41 @@ export async function analyzeDpaUrl(url: string, companyContext?: string): Promi
   }
 
   return response.json() as Promise<DpaAnalyzeResponse>;
+}
+
+export async function fetchLinkPreviews(urls: string[]): Promise<LinkPreview[]> {
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}/api/link-previews`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ urls }),
+    });
+  } catch (error) {
+    throw new ApiRequestError("request_failed", error instanceof Error ? error.message : "Unexpected network error.");
+  }
+
+  if (!response.ok) {
+    let errorPayload: ErrorResponse = {
+      error: "request_failed",
+      details: "Unexpected error.",
+    };
+
+    try {
+      const parsed = await response.json();
+      if (parsed?.detail?.error) {
+        errorPayload = parsed.detail;
+      }
+    } catch {
+      // Keep fallback error payload.
+    }
+
+    throw new ApiRequestError(errorPayload.error, errorPayload.details, response.status);
+  }
+
+  const payload = (await response.json()) as { previews: LinkPreview[] };
+  return payload.previews;
 }

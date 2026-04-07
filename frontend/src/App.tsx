@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 
-import { AnalyzeResponse, ApiRequestError, DpaAnalyzeResponse, DpaChecklistItem, analyzeDpaUrl, analyzeUrl } from "./api";
+import { AnalyzeResponse, ApiRequestError, DpaAnalyzeResponse, DpaChecklistItem, LinkPreview, analyzeDpaUrl, analyzeUrl, fetchLinkPreviews } from "./api";
 
 type ReviewSelection = {
   terms: boolean;
@@ -88,6 +88,19 @@ function getChecklistStatusLabel(item: DpaChecklistItem) {
   return item.status.replace("_", " ");
 }
 
+function getSupportingLinkHref(link: string, preview?: LinkPreview | null) {
+  if (preview) {
+    return preview.resolved_url || link;
+  }
+
+  try {
+    const parsed = new URL(link);
+    return parsed.toString();
+  } catch {
+    return link;
+  }
+}
+
 function hasAnySelection(selection: ReviewSelection) {
   return selection.terms || selection.dpa;
 }
@@ -159,6 +172,7 @@ export default function App() {
   const [loadingElapsedSeconds, setLoadingElapsedSeconds] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<AnalysisResults>({ terms: null, dpa: null });
+  const [supportingLinkPreviews, setSupportingLinkPreviews] = useState<Record<string, LinkPreview>>({});
   const [activeResultTab, setActiveResultTab] = useState<ResultTab>("terms");
 
   useEffect(() => {
@@ -192,6 +206,40 @@ export default function App() {
     return () => window.clearInterval(intervalId);
   }, [loading]);
 
+  useEffect(() => {
+    const links = results.dpa?.supporting_links ?? [];
+    const requestId = activeRequestIdRef.current;
+
+    if (links.length === 0) {
+      setSupportingLinkPreviews({});
+      return undefined;
+    }
+
+    let isCancelled = false;
+    setSupportingLinkPreviews({});
+
+    void (async () => {
+      try {
+        const previews = await fetchLinkPreviews(links);
+        if (isCancelled || activeRequestIdRef.current !== requestId) {
+          return;
+        }
+
+        setSupportingLinkPreviews(
+          Object.fromEntries(previews.map((preview) => [preview.requested_url, preview]))
+        );
+      } catch {
+        if (!isCancelled && activeRequestIdRef.current === requestId) {
+          setSupportingLinkPreviews({});
+        }
+      }
+    })();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [results.dpa]);
+
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
 
@@ -211,6 +259,7 @@ export default function App() {
     setLoading(true);
     setError(null);
     setResults({ terms: null, dpa: null });
+    setSupportingLinkPreviews({});
     setActiveResultTab(reviewSelection.dpa && !reviewSelection.terms ? "dpa" : "terms");
 
     try {
@@ -285,6 +334,7 @@ export default function App() {
     setReviewSelection((current) => ({ ...current, [reviewType]: !current[reviewType] }));
     setError(null);
     setResults({ terms: null, dpa: null });
+    setSupportingLinkPreviews({});
     setViewMode("input");
   };
 
@@ -294,6 +344,7 @@ export default function App() {
     setViewMode("input");
     setError(null);
     setResults({ terms: null, dpa: null });
+    setSupportingLinkPreviews({});
   };
 
   const currentLoadingStage = LOADING_STAGES[loadingStageIndex];
@@ -403,14 +454,6 @@ export default function App() {
               <h2>Evidence &amp; Coverage</h2>
             </div>
 
-            {results.terms.confidence_notes.length > 0 && (
-              <div className="coverage-note">
-                {results.terms.confidence_notes.map((note) => (
-                  <p key={note}>{note}</p>
-                ))}
-              </div>
-            )}
-
             <div className="evidence-section">
               <h3>Source links</h3>
               {results.terms.source_links.length === 0 ? (
@@ -505,15 +548,7 @@ export default function App() {
               <h2>Evidence &amp; Coverage</h2>
             </div>
 
-            {results.dpa.confidence_notes.length > 0 && (
-              <div className="coverage-note">
-                {results.dpa.confidence_notes.map((note) => (
-                  <p key={note}>{note}</p>
-                ))}
-              </div>
-            )}
-
-            <div className="evidence-section evidence-section-card">
+            <div className="evidence-section">
               <h3>Source links</h3>
               {results.dpa.source_links.length === 0 ? (
                 <p className="muted-copy">
@@ -537,15 +572,18 @@ export default function App() {
             {results.dpa.supporting_links.length > 0 && (
               <div className="evidence-section">
                 <h3>Supporting links</h3>
-                <p className="muted-copy">Related pages used during search, separated from confirmed DPA sources.</p>
-                <ul className="source-list">
-                  {results.dpa.supporting_links.map((link) => (
-                    <li key={link}>
-                      <a href={link} target="_blank" rel="noreferrer">
-                        {link}
-                      </a>
-                    </li>
-                  ))}
+                <ul className="source-list evidence-link-list">
+                  {results.dpa.supporting_links.map((link, index) => {
+                    const resolvedHref = getSupportingLinkHref(link, supportingLinkPreviews[link]);
+
+                    return (
+                      <li key={link}>
+                        <a href={resolvedHref} target="_blank" rel="noreferrer" title={resolvedHref}>
+                          {resolvedHref}
+                        </a>
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             )}

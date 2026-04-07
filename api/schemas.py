@@ -26,6 +26,10 @@ class AnalyzeRequest(BaseModel):
     company_context: str | None = Field(default=None, max_length=2000)
 
 
+class LinkPreviewRequest(BaseModel):
+    urls: list[AnyHttpUrl] = Field(default_factory=list, max_length=20)
+
+
 class ClauseHighlight(BaseModel):
     title: str = Field(min_length=1)
     rationale: str = Field(min_length=1)
@@ -62,6 +66,18 @@ class DpaAnalyzeResponse(BaseModel):
     blocked_links: list[str] = Field(default_factory=list)
     confidence_notes: list[str] = Field(default_factory=list)
     raw_analysis: str
+
+
+class LinkPreview(BaseModel):
+    requested_url: str
+    resolved_url: str
+    title: str | None = None
+    hostname: str
+    content_type: str | None = None
+
+
+class LinkPreviewResponse(BaseModel):
+    previews: list[LinkPreview] = Field(default_factory=list)
 
 
 class ErrorResponse(BaseModel):

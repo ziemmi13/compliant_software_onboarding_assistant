@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from api.main import app
 from api.services.analysis_service import AgentAnalysisResult
 from api.services.dpa_analysis_service import DpaAnalysisResult
+from api.schemas import LinkPreview
 from api.schemas import ClauseHighlight
 from api.schemas import DpaChecklistItem
 from api.schemas import DpaChecklistStatus
@@ -108,6 +109,29 @@ class ApiRouteTests(unittest.TestCase):
         self.assertEqual(payload["checklist"][0]["status"], "satisfied")
         self.assertEqual(payload["checklist"][0]["source_url"], "https://example.com/legal/data-processing-agreement")
         self.assertEqual(payload["supporting_links"], ["https://example.com/privacy"])
+
+    def test_link_previews_endpoint_success(self) -> None:
+        mock_previews = [
+            LinkPreview(
+                requested_url="https://vertexaisearch.cloud.google.com/grounding-api-redirect/abc",
+                resolved_url="https://example.com/privacy",
+                title="Privacy Policy",
+                hostname="example.com",
+                content_type="text/html; charset=utf-8",
+            )
+        ]
+
+        with patch("api.main.fetch_link_previews", return_value=mock_previews):
+            response = self.client.post(
+                "/api/link-previews",
+                json={"urls": ["https://vertexaisearch.cloud.google.com/grounding-api-redirect/abc"]},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(len(payload["previews"]), 1)
+        self.assertEqual(payload["previews"][0]["title"], "Privacy Policy")
+        self.assertEqual(payload["previews"][0]["hostname"], "example.com")
 
 
 if __name__ == "__main__":
