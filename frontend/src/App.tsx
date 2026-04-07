@@ -408,7 +408,6 @@ export default function App() {
             <span className="topbar-pill topbar-pill-low">Low {termsRiskCounts?.low ?? 0}</span>
             <span className="topbar-pill topbar-pill-coverage">Coverage {getCoverageLabel(results.terms.source_links, results.terms.blocked_links)}</span>
             <span className="topbar-pill topbar-pill-sources">Sources {results.terms.source_links.length}</span>
-            {results.terms.blocked_links.length > 0 && <span className="topbar-pill topbar-pill-blocked">Blocked {results.terms.blocked_links.length}</span>}
           </div>
         </section>
 
@@ -470,17 +469,6 @@ export default function App() {
                 </ul>
               )}
             </div>
-
-            {results.terms.blocked_links.length > 0 && (
-              <div className="evidence-section">
-                <h3>Blocked links</h3>
-                <ul className="blocked-list">
-                  {results.terms.blocked_links.map((link) => (
-                    <li key={link}>{link}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
           </article>
         </div>
       </section>
@@ -502,7 +490,6 @@ export default function App() {
             <span className="topbar-pill topbar-pill-coverage">Coverage {getCoverageLabel(results.dpa.source_links, results.dpa.blocked_links)}</span>
             <span className="topbar-pill topbar-pill-sources">Sources {results.dpa.source_links.length}</span>
             {results.dpa.supporting_links.length > 0 && <span className="topbar-pill topbar-pill-sources">Support {results.dpa.supporting_links.length}</span>}
-            {results.dpa.blocked_links.length > 0 && <span className="topbar-pill topbar-pill-blocked">Blocked {results.dpa.blocked_links.length}</span>}
           </div>
         </section>
 
@@ -584,17 +571,6 @@ export default function App() {
                       </li>
                     );
                   })}
-                </ul>
-              </div>
-            )}
-
-            {results.dpa.blocked_links.length > 0 && (
-              <div className="evidence-section">
-                <h3>Blocked links</h3>
-                <ul className="blocked-list">
-                  {results.dpa.blocked_links.map((link) => (
-                    <li key={link}>{link}</li>
-                  ))}
                 </ul>
               </div>
             )}
