@@ -1,11 +1,8 @@
 import unittest
 
-from google.genai import types
-
 from api.schemas import DpaChecklistItem
 from api.schemas import DpaChecklistStatus
 from api.services.dpa_analysis_service import build_dpa_analysis_prompt
-from api.services.dpa_analysis_service import extract_supporting_links_from_grounding
 from api.services.dpa_analysis_service import parse_structured_dpa_analysis
 from api.services.dpa_analysis_service import sort_checklist_by_priority
 from api.services.dpa_analysis_service import validate_dpa_checklist_sources
@@ -106,31 +103,5 @@ class ValidateDpaChecklistSourcesTests(unittest.TestCase):
         self.assertIsNone(validated[0].source_url)
         self.assertEqual(len(notes), 1)
         self.assertIn("could not be verified", notes[0])
-
-
-class ExtractSupportingLinksFromGroundingTests(unittest.TestCase):
-    def test_collects_search_grounding_links_that_are_not_confirmed_sources(self) -> None:
-        grounding_metadata = types.GroundingMetadata(
-            grounding_chunks=[
-                types.GroundingChunk(
-                    web=types.GroundingChunkWeb(uri="https://example.com/privacy", title="Privacy")
-                ),
-                types.GroundingChunk(
-                    web=types.GroundingChunkWeb(uri="https://example.com/legal/dpa", title="DPA")
-                ),
-            ]
-        )
-
-        supporting_links = extract_supporting_links_from_grounding(
-            grounding_metadata,
-            ["https://example.com/legal/dpa"],
-        )
-
-        self.assertEqual(supporting_links, ["https://example.com/privacy"])
-
-    def test_returns_empty_list_without_grounding(self) -> None:
-        self.assertEqual(extract_supporting_links_from_grounding(None, []), [])
-
-
 if __name__ == "__main__":
     unittest.main()

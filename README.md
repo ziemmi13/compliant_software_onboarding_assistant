@@ -2,7 +2,7 @@
 
 This project now includes:
 
-- ADK agent system under `legal_scout/`
+- LangChain-backed agent layer under `legal_scout/`
 - FastAPI backend wrapper under `api/`
 - React + Vite frontend under `frontend/`
 

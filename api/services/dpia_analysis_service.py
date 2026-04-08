@@ -1,27 +1,26 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 from dataclasses import field
 from json import JSONDecodeError
 from urllib.parse import urlparse
-from uuid import uuid4
 
-from google.adk.apps.app import App
-from google.adk.artifacts.in_memory_artifact_service import InMemoryArtifactService
-from google.adk.auth.credential_service.in_memory_credential_service import InMemoryCredentialService
-from google.adk.runners import Runner
-from google.adk.sessions.in_memory_session_service import InMemorySessionService
-from google.adk.utils.context_utils import Aclosing
-from google.genai import types
 from pydantic import BaseModel
 from pydantic import Field
 from pydantic import ValidationError
+
+logger = logging.getLogger(__name__)
 
 from api.schemas import DpiaSection
 from api.schemas import DpiaSectionRisk
 from api.schemas import DpiaThresholdItem
 from api.schemas import DpiaThresholdStatus
+from api.services.langchain_runner import MAX_RETRIES
+from api.services.langchain_runner import invoke_with_retry
+from api.services.source_page_service import fetch_source_page_excerpts
+from legal_scout.agents.dpia_agent import build_dpia_messages
 from legal_scout.agents.dpia_agent import dpia_agent
 from legal_scout.tools.find_privacy_from_homepage import find_privacy_from_homepage
 
@@ -128,39 +127,6 @@ def validate_dpia_sources(
     return validated_criteria, validated_sections, notes
 
 
-def extract_supporting_links_from_grounding(
-    grounding_metadata: types.GroundingMetadata | None,
-    source_links: list[str],
-) -> list[str]:
-    if not grounding_metadata or not grounding_metadata.grounding_chunks:
-        return []
-
-    normalized_sources = {_normalize_citation_url(link) for link in source_links}
-    supporting_links: list[str] = []
-    seen_links: set[str] = set()
-
-    for chunk in grounding_metadata.grounding_chunks:
-        candidates = []
-        if chunk.web and chunk.web.uri:
-            candidates.append(chunk.web.uri)
-        if chunk.retrieved_context and chunk.retrieved_context.uri:
-            candidates.append(chunk.retrieved_context.uri)
-
-        for candidate in candidates:
-            try:
-                normalized_candidate = _normalize_citation_url(candidate)
-            except ValueError:
-                continue
-
-            if normalized_candidate in normalized_sources or normalized_candidate in seen_links:
-                continue
-
-            seen_links.add(normalized_candidate)
-            supporting_links.append(normalized_candidate)
-
-    return supporting_links
-
-
 def parse_structured_dpia_analysis(raw_text: str) -> StructuredDpiaOutput:
     cleaned = raw_text.strip()
     if not cleaned:
@@ -199,6 +165,7 @@ def build_dpia_analysis_prompt(
     url: str,
     source_links: list[str],
     company_context: str | None = None,
+    source_excerpts: list[tuple[str, str]] | None = None,
 ) -> str:
     cleaned_context = (company_context or "").strip()
     prompt_lines = [
@@ -233,6 +200,15 @@ def build_dpia_analysis_prompt(
                 "Set source_url to null for every item.",
             ]
         )
+
+    if source_excerpts:
+        prompt_lines.extend(["", "Fetched source excerpts:"])
+        for excerpt_url, excerpt_text in source_excerpts:
+            prompt_lines.extend([
+                f"URL: {excerpt_url}",
+                excerpt_text,
+                "",
+            ])
 
     prompt_lines.extend(
         [
@@ -299,48 +275,19 @@ async def run_dpia_analysis(url: str, company_context: str | None = None) -> Dpi
     source_links = discovered.get("valid", [])
     blocked_links = discovered.get("blocked", [])
     supporting_links: list[str] = []
+    logger.info("DPIA analysis for %s: %d source links, %d blocked", url, len(source_links), len(blocked_links))
 
-    app = App(name="legal_scout_dpia_web", root_agent=dpia_agent)
-    session_service = InMemorySessionService()
-    runner = Runner(
-        app=app,
-        session_service=session_service,
-        artifact_service=InMemoryArtifactService(),
-        credential_service=InMemoryCredentialService(),
+    source_excerpts = [(item.url, item.content) for item in fetch_source_page_excerpts(source_links)]
+
+    prompt = build_dpia_analysis_prompt(url, source_links, company_context, source_excerpts)
+
+    final_text = await invoke_with_retry(
+        llm=dpia_agent,
+        messages=build_dpia_messages(prompt),
+        logger=logger,
+        label="DPIA agent",
+        max_retries=MAX_RETRIES,
     )
-
-    user_id = "web_user"
-    session_id = str(uuid4())
-    await session_service.create_session(app_name=app.name, user_id=user_id, session_id=session_id)
-
-    prompt = build_dpia_analysis_prompt(url, source_links, company_context)
-
-    final_text = ""
-    try:
-        content = types.Content(role="user", parts=[types.Part(text=prompt)])
-        async with Aclosing(
-            runner.run_async(user_id=user_id, session_id=session_id, new_message=content)
-        ) as event_stream:
-            async for event in event_stream:
-                for link in extract_supporting_links_from_grounding(event.grounding_metadata, source_links):
-                    if link not in supporting_links:
-                        supporting_links.append(link)
-
-                if not event.content or not event.content.parts:
-                    continue
-
-                if event.author != "dpia_agent" or not event.is_final_response():
-                    continue
-
-                text_parts = [part.text or "" for part in event.content.parts if part.text]
-                combined = "\n".join(part.strip() for part in text_parts if part.strip())
-                if combined:
-                    final_text = combined
-    finally:
-        await runner.close()
-
-    if not final_text:
-        raise RuntimeError("No DPIA analysis text was returned by the agent.")
 
     structured = parse_structured_dpia_analysis(final_text)
     validated_criteria, validated_sections, confidence_notes = validate_dpia_sources(

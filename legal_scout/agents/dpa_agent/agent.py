@@ -1,14 +1,16 @@
 from pathlib import Path
 
-from google.adk.agents.llm_agent import Agent
-from google.adk.tools.google_search_tool import google_search
+from langchain_core.messages import HumanMessage
+from langchain_core.messages import SystemMessage
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 _INSTRUCTION = (Path(__file__).parent / "dpa_agent.md").read_text(encoding="utf-8")
 
-dpa_agent = Agent(
+dpa_agent = ChatGoogleGenerativeAI(
     model="gemini-2.5-flash",
-    name="dpa_agent",
-    description="An agent for reviewing data processing agreements and annexes.",
-    instruction=_INSTRUCTION,
-    tools=[google_search],
+    temperature=0,
 )
+
+
+def build_dpa_messages(prompt: str) -> list[SystemMessage | HumanMessage]:
+    return [SystemMessage(content=_INSTRUCTION), HumanMessage(content=prompt)]

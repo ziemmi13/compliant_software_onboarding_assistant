@@ -1,8 +1,15 @@
 from __future__ import annotations
 
+import logging
+import os
 from pathlib import Path
 from urllib.parse import urlparse
 import asyncio
+
+_log_level = getattr(logging, os.environ.get("LOG_LEVEL", "INFO").upper(), logging.INFO)
+logging.basicConfig(level=_log_level, format="%(levelname)s:%(name)s:%(message)s")
+logging.getLogger("api").setLevel(_log_level)
+logger = logging.getLogger(__name__)
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
@@ -51,6 +58,7 @@ async def link_previews(request: LinkPreviewRequest) -> LinkPreviewResponse:
     try:
         previews = await asyncio.to_thread(fetch_link_previews, [str(url) for url in request.urls])
     except Exception as exc:
+        logger.exception("Link preview failed")
         raise HTTPException(
             status_code=500,
             detail={"error": "preview_failed", "details": str(exc)},
@@ -72,6 +80,7 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
             company_context=request.company_context,
         )
     except Exception as exc:
+        logger.exception("Terms analysis failed for %s", normalized_url)
         raise HTTPException(
             status_code=500,
             detail={"error": "analysis_failed", "details": str(exc)},
@@ -103,6 +112,7 @@ async def analyze_dpa(request: AnalyzeRequest) -> DpaAnalyzeResponse:
             company_context=request.company_context,
         )
     except Exception as exc:
+        logger.exception("DPA analysis failed for %s", normalized_url)
         raise HTTPException(
             status_code=500,
             detail={"error": "analysis_failed", "details": str(exc)},
@@ -135,6 +145,7 @@ async def analyze_dpia(request: AnalyzeRequest) -> DpiaAnalyzeResponse:
             company_context=request.company_context,
         )
     except Exception as exc:
+        logger.exception("DPIA analysis failed for %s", normalized_url)
         raise HTTPException(
             status_code=500,
             detail={"error": "analysis_failed", "details": str(exc)},

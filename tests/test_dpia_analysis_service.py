@@ -1,14 +1,11 @@
 import unittest
 
-from google.genai import types
-
 from api.schemas import DpiaSection
 from api.schemas import DpiaSectionFinding
 from api.schemas import DpiaSectionRisk
 from api.schemas import DpiaThresholdItem
 from api.schemas import DpiaThresholdStatus
 from api.services.dpia_analysis_service import build_dpia_analysis_prompt
-from api.services.dpia_analysis_service import extract_supporting_links_from_grounding
 from api.services.dpia_analysis_service import parse_structured_dpia_analysis
 from api.services.dpia_analysis_service import sort_threshold_by_priority
 from api.services.dpia_analysis_service import validate_dpia_sources
@@ -234,31 +231,5 @@ class ValidateDpiaSourcesTests(unittest.TestCase):
 
         self.assertIsNone(validated_criteria[0].source_url)
         self.assertEqual(notes, [])
-
-
-class ExtractSupportingLinksFromGroundingTests(unittest.TestCase):
-    def test_collects_grounding_links_not_in_sources(self) -> None:
-        grounding_metadata = types.GroundingMetadata(
-            grounding_chunks=[
-                types.GroundingChunk(
-                    web=types.GroundingChunkWeb(uri="https://example.com/blog/gdpr", title="GDPR Blog")
-                ),
-                types.GroundingChunk(
-                    web=types.GroundingChunkWeb(uri="https://example.com/privacy", title="Privacy")
-                ),
-            ]
-        )
-
-        supporting_links = extract_supporting_links_from_grounding(
-            grounding_metadata,
-            ["https://example.com/privacy"],
-        )
-
-        self.assertEqual(supporting_links, ["https://example.com/blog/gdpr"])
-
-    def test_returns_empty_list_without_grounding(self) -> None:
-        self.assertEqual(extract_supporting_links_from_grounding(None, []), [])
-
-
 if __name__ == "__main__":
     unittest.main()

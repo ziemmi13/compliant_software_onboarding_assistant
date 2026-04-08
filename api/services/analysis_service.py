@@ -2,27 +2,26 @@ from __future__ import annotations
 
 import ipaddress
 import json
+import logging
 from dataclasses import dataclass
 from dataclasses import field
 from json import JSONDecodeError
 from urllib.parse import urlparse
-from uuid import uuid4
 
-from google.adk.apps.app import App
-from google.adk.artifacts.in_memory_artifact_service import InMemoryArtifactService
-from google.adk.auth.credential_service.in_memory_credential_service import InMemoryCredentialService
-from google.adk.runners import Runner
-from google.adk.sessions.in_memory_session_service import InMemorySessionService
-from google.adk.utils.context_utils import Aclosing
-from google.genai import types
 from pydantic import BaseModel
 from pydantic import Field
 from pydantic import ValidationError
 
 from api.schemas import ClauseHighlight
 from api.schemas import RiskLevel
+from api.services.langchain_runner import MAX_RETRIES
+from api.services.langchain_runner import invoke_with_retry
+from api.services.source_page_service import fetch_source_page_excerpts
+from legal_scout.agents.terms_agent import build_terms_messages
 from legal_scout.agents.terms_agent import terms_agent
 from legal_scout.tools.find_terms_from_homepage import find_terms_from_homepage
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -138,6 +137,7 @@ def build_analysis_prompt(
     url: str,
     source_links: list[str],
     company_context: str | None = None,
+    source_excerpts: list[tuple[str, str]] | None = None,
 ) -> str:
     cleaned_context = (company_context or "").strip()
     prompt_lines = [
@@ -171,6 +171,15 @@ def build_analysis_prompt(
                 "Set source_url to null for every highlight.",
             ]
         )
+
+    if source_excerpts:
+        prompt_lines.extend(["", "Fetched source excerpts:"])
+        for excerpt_url, excerpt_text in source_excerpts:
+            prompt_lines.extend([
+                f"URL: {excerpt_url}",
+                excerpt_text,
+                "",
+            ])
 
     prompt_lines.extend(
         [
@@ -226,48 +235,19 @@ async def run_terms_analysis(url: str, company_context: str | None = None) -> Ag
     discovered = find_terms_from_homepage(url)
     source_links = discovered.get("valid", [])
     blocked_links = discovered.get("blocked", [])
+    logger.info("Terms analysis for %s: %d source links, %d blocked", url, len(source_links), len(blocked_links))
 
-    app = App(name="legal_scout_web", root_agent=terms_agent)
-    session_service = InMemorySessionService()
-    runner = Runner(
-        app=app,
-        session_service=session_service,
-        artifact_service=InMemoryArtifactService(),
-        credential_service=InMemoryCredentialService(),
+    source_excerpts = [(item.url, item.content) for item in fetch_source_page_excerpts(source_links)]
+
+    prompt = build_analysis_prompt(url, source_links, company_context, source_excerpts)
+
+    final_text = await invoke_with_retry(
+        llm=terms_agent,
+        messages=build_terms_messages(prompt),
+        logger=logger,
+        label="Terms agent",
+        max_retries=MAX_RETRIES,
     )
-
-    user_id = "web_user"
-    session_id = str(uuid4())
-    await session_service.create_session(
-        app_name=app.name,
-        user_id=user_id,
-        session_id=session_id,
-    )
-
-    prompt = build_analysis_prompt(url, source_links, company_context)
-
-    final_text = ""
-    try:
-        content = types.Content(role="user", parts=[types.Part(text=prompt)])
-        async with Aclosing(
-            runner.run_async(user_id=user_id, session_id=session_id, new_message=content)
-        ) as event_stream:
-            async for event in event_stream:
-                if not event.content or not event.content.parts:
-                    continue
-
-                if event.author != "terms_agent" or not event.is_final_response():
-                    continue
-
-                text_parts = [part.text or "" for part in event.content.parts if part.text]
-                combined = "\n".join(part.strip() for part in text_parts if part.strip())
-                if combined:
-                    final_text = combined
-    finally:
-        await runner.close()
-
-    if not final_text:
-        raise RuntimeError("No analysis text was returned by the agent.")
 
     structured = parse_structured_analysis(final_text)
     validated_highlights, confidence_notes = validate_highlight_sources(structured.highlights, source_links)
