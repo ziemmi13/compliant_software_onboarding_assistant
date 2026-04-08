@@ -15,6 +15,7 @@ from api.schemas import DpaChecklistStatus
 from api.schemas import DpiaThresholdItem
 from api.schemas import DpiaThresholdStatus
 from api.schemas import DpiaSection
+from api.schemas import DpiaSectionFinding
 from api.schemas import RiskLevel
 
 
@@ -146,7 +147,7 @@ class ApiRouteTests(unittest.TestCase):
                 DpiaSection(
                     section_key="processing_description",
                     section_title="Systematic description of processing",
-                    content="The service processes employee biometric data for authentication.",
+                    findings=[DpiaSectionFinding(title="Data processed", detail="Employee biometric data for authentication.")],
                     source_url="https://example.com/privacy",
                 ),
             ],

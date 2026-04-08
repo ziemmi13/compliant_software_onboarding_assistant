@@ -3,6 +3,7 @@ import unittest
 from google.genai import types
 
 from api.schemas import DpiaSection
+from api.schemas import DpiaSectionFinding
 from api.schemas import DpiaSectionRisk
 from api.schemas import DpiaThresholdItem
 from api.schemas import DpiaThresholdStatus
@@ -86,7 +87,7 @@ class ParseStructuredDpiaAnalysisTests(unittest.TestCase):
             '"status":"detected","evidence":"Uses AI/ML models.","source_url":null}],'
             '"dpia_sections":[{"section_key":"processing_description",'
             '"section_title":"Systematic description of processing",'
-            '"content":"The service processes employee biometric data.","risk_level":null,"source_url":null}]}'
+            '"findings":[{"title":"Data processed","detail":"Employee biometric data for authentication."}],"risk_level":null,"source_url":null}]}'
         )
         self.assertEqual(len(result.dpia_sections), 1)
         self.assertEqual(result.dpia_sections[0].section_key, "processing_description")
@@ -206,7 +207,7 @@ class ValidateDpiaSourcesTests(unittest.TestCase):
             DpiaSection(
                 section_key="processing_description",
                 section_title="Processing description",
-                content="Processes employee data.",
+                findings=[DpiaSectionFinding(title="Data processed", detail="Employee data for HR.")],
                 source_url="https://example.com/bad-link",
             )
         ]

@@ -49,10 +49,15 @@ export interface DpiaThresholdItem {
   source_url?: string | null;
 }
 
+export interface DpiaSectionFinding {
+  title: string;
+  detail: string;
+}
+
 export interface DpiaSection {
   section_key: string;
   section_title: string;
-  content: string;
+  findings: DpiaSectionFinding[];
   risk_level?: DpiaSectionRisk | null;
   source_url?: string | null;
 }

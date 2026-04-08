@@ -1244,6 +1244,23 @@ button:disabled {
   color: #44545b;
 }
 
+.dpia-findings {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.dpia-finding {
+  padding: 0.55rem 0.75rem;
+  border-radius: 12px;
+  background: rgba(0, 33, 71, 0.03);
+  border: 1px solid rgba(0, 33, 71, 0.06);
+  font-size: 0.93rem;
+  line-height: 1.55;
+}
+
 .coverage-note {
   margin-bottom: 1rem;
   padding: 0.9rem 1rem;

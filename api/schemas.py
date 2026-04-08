@@ -105,10 +105,15 @@ class DpiaThresholdItem(BaseModel):
     source_url: str | None = None
 
 
+class DpiaSectionFinding(BaseModel):
+    title: str = Field(min_length=1)
+    detail: str = Field(min_length=1)
+
+
 class DpiaSection(BaseModel):
     section_key: str = Field(min_length=1)
     section_title: str = Field(min_length=1)
-    content: str = Field(min_length=1)
+    findings: list[DpiaSectionFinding] = Field(min_length=1)
     risk_level: DpiaSectionRisk | None = None
     source_url: str | None = None
 

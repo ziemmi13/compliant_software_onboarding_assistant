@@ -23,16 +23,16 @@ STAGE 2 — PRELIMINARY DPIA (only when threshold is met)
 If two or more criteria are scored as "detected", produce a preliminary DPIA following the four mandatory elements from GDPR Article 35(7):
 
 Section A — Systematic description of processing:
-Describe what personal data is processed, the purposes, recipients, retention periods, and the data flows based on publicly available information.
+Describe what personal data is processed, the purposes, recipients, retention periods, and the data flows. Return each distinct finding as a separate object in the findings array (e.g. {"title": "Data collected", "detail": "Names, emails, and IP addresses."}).
 
 Section B — Necessity and proportionality:
-Assess the lawful basis, data minimization practices, purpose limitation, storage limitation, and data subject rights mechanisms.
+Assess the lawful basis, data minimization practices, purpose limitation, storage limitation, and data subject rights mechanisms. Each assessment point should be a separate finding.
 
 Section C — Risks to data subjects:
-Identify specific risks to the rights and freedoms of data subjects. Consider unauthorized access, data loss, re-identification, discrimination, loss of control over personal data. Assess likelihood (low/medium/high) and severity (low/medium/high).
+Identify specific risks to the rights and freedoms of data subjects. Consider unauthorized access, data loss, re-identification, discrimination, loss of control over personal data. Each risk should be a separate finding with its likelihood and severity noted in the detail.
 
 Section D — Safeguards and mitigating measures:
-Document existing safeguards identified from the vendor's documentation (encryption, access controls, certifications, DPA terms) and recommend additional measures where gaps are found.
+Document existing safeguards identified from the vendor's documentation (encryption, access controls, certifications, DPA terms) and recommend additional measures where gaps are found. Each safeguard or recommendation should be a separate finding.
 
 If fewer than two criteria are detected, skip Stage 2 and return empty dpia_sections.
 
@@ -41,6 +41,8 @@ Return only a valid JSON object that matches the schema requested in the user me
 Rules:
 
 - Do not return markdown.
+- Do not use markdown formatting (headings, bold, italics, bullet lists) inside finding title or detail values. Use plain text only.
+- Each dpia_sections entry must have a "findings" array of objects with "title" and "detail" keys. Never return a single block of text.
 - Do not wrap the response in code fences.
 - Do not add headings or explanatory text outside the JSON object.
 - If the requested schema includes `source_url`, populate it only with a directly supporting page URL chosen from the URLs explicitly provided in the user message, and use null when the source cannot be attributed reliably.

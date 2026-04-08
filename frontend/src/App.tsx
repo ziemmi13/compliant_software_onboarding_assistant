@@ -678,7 +678,10 @@ export default function App() {
                 <h2>Preliminary DPIA</h2>
               </div>
               <ul className="highlights editorial-highlights">
-                {results.dpia.dpia_sections.map((section) => (
+                {[...results.dpia.dpia_sections].sort((a, b) => {
+                  const order: Record<string, number> = { high: 0, medium: 1, low: 2 };
+                  return (order[a.risk_level ?? ""] ?? 3) - (order[b.risk_level ?? ""] ?? 3);
+                }).map((section) => (
                   <li key={section.section_key} className={`highlight-card highlight-card-${section.risk_level ?? "unknown"}`}>
                     <div className="title-row">
                       <strong>{section.section_title}</strong>
@@ -686,7 +689,13 @@ export default function App() {
                         <span className={`risk risk-${section.risk_level}`}>{section.risk_level}</span>
                       )}
                     </div>
-                    <p>{section.content}</p>
+                    <ul className="dpia-findings">
+                      {section.findings.map((f, i) => (
+                        <li key={i} className="dpia-finding">
+                          <strong>{f.title}:</strong> {f.detail}
+                        </li>
+                      ))}
+                    </ul>
                     {section.source_url && (
                       <p className="highlight-source">
                         Source:{" "}
@@ -899,9 +908,6 @@ export default function App() {
               <div className="review-shell-copy">
                 <p className="section-kicker">Review ready</p>
                 <h1 className="review-shell-title">{targetHost ?? "Analysis report"}</h1>
-                <p className="review-shell-body">
-                  Switch between the completed review modules below, or go back to refine the software, URL, and context.
-                </p>
               {availableTabs.length > 1 && (
                 <div className="results-tablist results-tablist-header" role="tablist" aria-label="Result sections">
                   {results.terms && (
