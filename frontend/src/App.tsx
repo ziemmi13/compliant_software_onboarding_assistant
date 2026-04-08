@@ -1,18 +1,20 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 
-import { AnalyzeResponse, ApiRequestError, DpaAnalyzeResponse, DpaChecklistItem, LinkPreview, analyzeDpaUrl, analyzeUrl, fetchLinkPreviews } from "./api";
+import { AnalyzeResponse, ApiRequestError, DpaAnalyzeResponse, DpaChecklistItem, DpiaAnalyzeResponse, DpiaThresholdItem, LinkPreview, analyzeDpaUrl, analyzeDpiaUrl, analyzeUrl, fetchLinkPreviews } from "./api";
 
 type ReviewSelection = {
   terms: boolean;
   dpa: boolean;
+  dpia: boolean;
 };
 
 type AnalysisResults = {
   terms: AnalyzeResponse | null;
   dpa: DpaAnalyzeResponse | null;
+  dpia: DpiaAnalyzeResponse | null;
 };
 
-type ResultTab = "terms" | "dpa";
+type ResultTab = "terms" | "dpa" | "dpia";
 type ViewMode = "input" | "review";
 
 type ModuleExecutionResult<T> = {
@@ -84,6 +86,20 @@ function countChecklistByStatus(result: DpaAnalyzeResponse) {
   );
 }
 
+function countThresholdByStatus(result: DpiaAnalyzeResponse) {
+  return result.threshold_criteria.reduce(
+    (counts, item) => {
+      counts[item.status] += 1;
+      return counts;
+    },
+    { detected: 0, not_detected: 0, insufficient_info: 0 }
+  );
+}
+
+function getThresholdStatusLabel(item: DpiaThresholdItem) {
+  return item.status.replace(/_/g, " ");
+}
+
 function getChecklistStatusLabel(item: DpaChecklistItem) {
   return item.status.replace("_", " ");
 }
@@ -102,19 +118,15 @@ function getSupportingLinkHref(link: string, preview?: LinkPreview | null) {
 }
 
 function hasAnySelection(selection: ReviewSelection) {
-  return selection.terms || selection.dpa;
+  return selection.terms || selection.dpa || selection.dpia;
 }
 
 function getSelectionLabel(selection: ReviewSelection) {
-  if (selection.terms && selection.dpa) {
-    return "T&C and DPA";
-  }
-
-  if (selection.dpa) {
-    return "DPA";
-  }
-
-  return "T&C";
+  const parts: string[] = [];
+  if (selection.terms) parts.push("T&C");
+  if (selection.dpa) parts.push("DPA");
+  if (selection.dpia) parts.push("DPIA");
+  return parts.join(" and ") || "T&C";
 }
 
 function getTermsCoverageLabel(result: AnalyzeResponse) {
@@ -146,9 +158,17 @@ function hasDpaAnswer(result: DpaAnalyzeResponse) {
   );
 }
 
+function hasDpiaAnswer(result: DpiaAnalyzeResponse) {
+  return (
+    result.threshold_criteria.length > 0 ||
+    result.summary.trim().length > 0 ||
+    result.source_links.length > 0
+  );
+}
+
 function formatModuleFailureMessage(kind: ResultTab, error: unknown) {
-  const moduleLabel = kind === "terms" ? "T&C" : "DPA";
-  const specificUrlHint = kind === "terms" ? "a direct terms URL" : "a direct DPA URL";
+  const moduleLabel = kind === "terms" ? "T&C" : kind === "dpa" ? "DPA" : "DPIA";
+  const specificUrlHint = kind === "terms" ? "a direct terms URL" : kind === "dpa" ? "a direct DPA URL" : "a direct privacy policy URL";
 
   if (error instanceof ApiRequestError) {
     if (error.code === "invalid_url") {
@@ -165,13 +185,13 @@ export default function App() {
   const activeRequestIdRef = useRef(0);
   const [url, setUrl] = useState("");
   const [companyContext, setCompanyContext] = useState("");
-  const [reviewSelection, setReviewSelection] = useState<ReviewSelection>({ terms: true, dpa: true });
+  const [reviewSelection, setReviewSelection] = useState<ReviewSelection>({ terms: true, dpa: true, dpia: false });
   const [viewMode, setViewMode] = useState<ViewMode>("input");
   const [loading, setLoading] = useState(false);
   const [loadingStageIndex, setLoadingStageIndex] = useState(0);
   const [loadingElapsedSeconds, setLoadingElapsedSeconds] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [results, setResults] = useState<AnalysisResults>({ terms: null, dpa: null });
+  const [results, setResults] = useState<AnalysisResults>({ terms: null, dpa: null, dpia: null });
   const [supportingLinkPreviews, setSupportingLinkPreviews] = useState<Record<string, LinkPreview>>({});
   const [activeResultTab, setActiveResultTab] = useState<ResultTab>("terms");
 
@@ -207,7 +227,9 @@ export default function App() {
   }, [loading]);
 
   useEffect(() => {
-    const links = results.dpa?.supporting_links ?? [];
+    const dpaLinks = results.dpa?.supporting_links ?? [];
+    const dpiaLinks = results.dpia?.supporting_links ?? [];
+    const links = [...new Set([...dpaLinks, ...dpiaLinks])];
     const requestId = activeRequestIdRef.current;
 
     if (links.length === 0) {
@@ -238,7 +260,7 @@ export default function App() {
     return () => {
       isCancelled = true;
     };
-  }, [results.dpa]);
+  }, [results.dpa, results.dpia]);
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -258,9 +280,11 @@ export default function App() {
 
     setLoading(true);
     setError(null);
-    setResults({ terms: null, dpa: null });
+    setResults({ terms: null, dpa: null, dpia: null });
     setSupportingLinkPreviews({});
-    setActiveResultTab(reviewSelection.dpa && !reviewSelection.terms ? "dpa" : "terms");
+    setActiveResultTab(
+      reviewSelection.terms ? "terms" : reviewSelection.dpa ? "dpa" : "dpia"
+    );
 
     try {
       const executeOnce = async <T,>(
@@ -292,13 +316,17 @@ export default function App() {
       const dpaJob = reviewSelection.dpa
         ? executeOnce("dpa", () => analyzeDpaUrl(url.trim(), companyContext), hasDpaAnswer)
         : Promise.resolve<ModuleExecutionResult<DpaAnalyzeResponse>>({ analysis: null, errorMessage: null });
+      const dpiaJob = reviewSelection.dpia
+        ? executeOnce("dpia", () => analyzeDpiaUrl(url.trim(), companyContext), hasDpiaAnswer)
+        : Promise.resolve<ModuleExecutionResult<DpiaAnalyzeResponse>>({ analysis: null, errorMessage: null });
 
-      const [termsResult, dpaResult] = await Promise.all([termsJob, dpaJob]);
+      const [termsResult, dpaResult, dpiaResult] = await Promise.all([termsJob, dpaJob, dpiaJob]);
       const nextResults: AnalysisResults = {
         terms: termsResult.analysis,
         dpa: dpaResult.analysis,
+        dpia: dpiaResult.analysis,
       };
-      const failures = [termsResult.errorMessage, dpaResult.errorMessage].filter(Boolean) as string[];
+      const failures = [termsResult.errorMessage, dpaResult.errorMessage, dpiaResult.errorMessage].filter(Boolean) as string[];
 
       if (activeRequestIdRef.current !== requestId) {
         return;
@@ -333,7 +361,7 @@ export default function App() {
   const toggleReviewType = (reviewType: keyof ReviewSelection) => {
     setReviewSelection((current) => ({ ...current, [reviewType]: !current[reviewType] }));
     setError(null);
-    setResults({ terms: null, dpa: null });
+    setResults({ terms: null, dpa: null, dpia: null });
     setSupportingLinkPreviews({});
     setViewMode("input");
   };
@@ -343,7 +371,7 @@ export default function App() {
     setLoading(false);
     setViewMode("input");
     setError(null);
-    setResults({ terms: null, dpa: null });
+    setResults({ terms: null, dpa: null, dpia: null });
     setSupportingLinkPreviews({});
   };
 
@@ -370,6 +398,7 @@ export default function App() {
 
   const termsRiskCounts = results.terms ? countHighlightsByRisk(results.terms) : null;
   const dpaChecklistCounts = results.dpa ? countChecklistByStatus(results.dpa) : null;
+  const dpiaThresholdCounts = results.dpia ? countThresholdByStatus(results.dpia) : null;
 
   const getCoverageLabel = (sourceLinks: string[], blockedLinks: string[]) => {
     if (blockedLinks.length > 0) {
@@ -379,20 +408,25 @@ export default function App() {
     return sourceLinks.length > 0 ? "Good" : "Limited";
   };
 
-  const hasResults = Boolean(results.terms || results.dpa);
-  const availableTabs: ResultTab[] = [results.terms ? "terms" : null, results.dpa ? "dpa" : null].filter(Boolean) as ResultTab[];
+  const hasResults = Boolean(results.terms || results.dpa || results.dpia);
+  const availableTabs: ResultTab[] = [results.terms ? "terms" : null, results.dpa ? "dpa" : null, results.dpia ? "dpia" : null].filter(Boolean) as ResultTab[];
   const visibleResultTab = availableTabs.includes(activeResultTab) ? activeResultTab : availableTabs[0] ?? "terms";
 
   useEffect(() => {
-    if (results.terms && !results.dpa) {
+    if (results.terms && !results.dpa && !results.dpia) {
       setActiveResultTab("terms");
       return;
     }
 
-    if (results.dpa && !results.terms) {
+    if (results.dpa && !results.terms && !results.dpia) {
       setActiveResultTab("dpa");
+      return;
     }
-  }, [results.dpa, results.terms]);
+
+    if (results.dpia && !results.terms && !results.dpa) {
+      setActiveResultTab("dpia");
+    }
+  }, [results.dpa, results.dpia, results.terms]);
 
   const renderTermsPanel = () => {
     if (!results.terms) {
@@ -580,6 +614,139 @@ export default function App() {
     );
   };
 
+  const renderDpiaPanel = () => {
+    if (!results.dpia) {
+      return null;
+    }
+
+    return (
+      <section className="result-block">
+        <section className="results-topbar simple-topbar">
+          <div className="topbar-metrics compact-metrics">
+            <span className="topbar-pill topbar-pill-high">Detected {dpiaThresholdCounts?.detected ?? 0}</span>
+            <span className="topbar-pill topbar-pill-low">Not detected {dpiaThresholdCounts?.not_detected ?? 0}</span>
+            <span className="topbar-pill topbar-pill-medium">Insufficient {dpiaThresholdCounts?.insufficient_info ?? 0}</span>
+            <span className={`topbar-pill ${results.dpia.dpia_required ? "topbar-pill-high" : "topbar-pill-satisfied"}`}>
+              {results.dpia.dpia_required ? "DPIA Required" : "DPIA Not Required"}
+            </span>
+            <span className="topbar-pill topbar-pill-coverage">Score {results.dpia.threshold_score}/9</span>
+          </div>
+        </section>
+
+        <div className="results-primary">
+          <article className="card summary-card narrative-card">
+            <div className="card-header">
+              <h2>DPIA Screening Summary</h2>
+            </div>
+            <p className="summary-copy">{results.dpia.summary}</p>
+          </article>
+
+          <article className="card highlights-card narrative-card">
+            <div className="card-header">
+              <h2>WP29 Threshold Criteria ({results.dpia.threshold_score}/9 detected)</h2>
+            </div>
+            {results.dpia.threshold_criteria.length === 0 ? (
+              <p>No threshold criteria were evaluated.</p>
+            ) : (
+              <ul className="highlights editorial-highlights dpa-checklist">
+                {results.dpia.threshold_criteria.map((item) => (
+                  <li key={item.criterion_key} className={`highlight-card dpa-checklist-item dpa-checklist-item-${item.status === "detected" ? "missing" : item.status === "not_detected" ? "satisfied" : "unclear"}`}>
+                    <div className="title-row">
+                      <strong>{item.criterion_name}</strong>
+                      <span className={`check-status check-status-${item.status === "detected" ? "missing" : item.status === "not_detected" ? "satisfied" : "unclear"}`}>
+                        {getThresholdStatusLabel(item)}
+                      </span>
+                    </div>
+                    <p>{item.evidence}</p>
+                    {item.source_url && (
+                      <p className="highlight-source">
+                        Source:{" "}
+                        <a href={item.source_url} target="_blank" rel="noreferrer">
+                          {item.source_url}
+                        </a>
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </article>
+
+          {results.dpia.dpia_sections.length > 0 && (
+            <article className="card highlights-card narrative-card">
+              <div className="card-header">
+                <h2>Preliminary DPIA</h2>
+              </div>
+              <ul className="highlights editorial-highlights">
+                {results.dpia.dpia_sections.map((section) => (
+                  <li key={section.section_key} className={`highlight-card highlight-card-${section.risk_level ?? "unknown"}`}>
+                    <div className="title-row">
+                      <strong>{section.section_title}</strong>
+                      {section.risk_level && (
+                        <span className={`risk risk-${section.risk_level}`}>{section.risk_level}</span>
+                      )}
+                    </div>
+                    <p>{section.content}</p>
+                    {section.source_url && (
+                      <p className="highlight-source">
+                        Source:{" "}
+                        <a href={section.source_url} target="_blank" rel="noreferrer">
+                          {section.source_url}
+                        </a>
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </article>
+          )}
+
+          <article className="card evidence-card narrative-card">
+            <div className="card-header">
+              <h2>Evidence &amp; Coverage</h2>
+            </div>
+
+            <div className="evidence-section">
+              <h3>Source links</h3>
+              {results.dpia.source_links.length === 0 ? (
+                <p className="muted-copy">No source links were confirmed.</p>
+              ) : (
+                <ul className="source-list evidence-link-list">
+                  {results.dpia.source_links.map((link) => (
+                    <li key={link}>
+                      <a href={link} target="_blank" rel="noreferrer">
+                        {link}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {results.dpia.supporting_links.length > 0 && (
+              <div className="evidence-section">
+                <h3>Supporting links</h3>
+                <ul className="source-list evidence-link-list">
+                  {results.dpia.supporting_links.map((link) => {
+                    const resolvedHref = getSupportingLinkHref(link, supportingLinkPreviews[link]);
+
+                    return (
+                      <li key={link}>
+                        <a href={resolvedHref} target="_blank" rel="noreferrer" title={resolvedHref}>
+                          {resolvedHref}
+                        </a>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
+          </article>
+        </div>
+      </section>
+    );
+  };
+
   const showReviewScreen = viewMode === "review" && hasResults;
   const showLogoHomeAction = loading || showReviewScreen;
 
@@ -622,11 +789,13 @@ export default function App() {
               </div>
               <h1 className="review-mode-heading">{reviewModeTitle}</h1>
               <p className="review-mode-body">
-                {reviewSelection.terms && reviewSelection.dpa
-                  ? "COMPL.AI is running both the contractual review and the DPA review before assembling the combined report."
-                  : reviewSelection.dpa
-                    ? "COMPL.AI is reviewing the DPA package and linked annexes before generating an Article 28 checklist."
-                    : "COMPL.AI is running a focused legal intake pass before generating the final summary and ranked highlights."}
+                {reviewSelection.dpia
+                  ? "COMPL.AI is screening the vendor's data processing against the WP29 threshold criteria and preparing a DPIA assessment."
+                  : reviewSelection.terms && reviewSelection.dpa
+                    ? "COMPL.AI is running both the contractual review and the DPA review before assembling the combined report."
+                    : reviewSelection.dpa
+                      ? "COMPL.AI is reviewing the DPA package and linked annexes before generating an Article 28 checklist."
+                      : "COMPL.AI is running a focused legal intake pass before generating the final summary and ranked highlights."}
               </p>
 
               <div className="review-mode-notes">
@@ -759,6 +928,18 @@ export default function App() {
                       <span>DPA</span>
                     </button>
                   )}
+                  {results.dpia && (
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={visibleResultTab === "dpia"}
+                      aria-label="Show D P I A results"
+                      className={visibleResultTab === "dpia" ? "results-tab results-tab-active" : "results-tab"}
+                      onClick={() => setActiveResultTab("dpia")}
+                    >
+                      <span>DPIA</span>
+                    </button>
+                  )}
                 </div>
               )}
               </div>
@@ -771,7 +952,7 @@ export default function App() {
 
             <section className="results results-stack">
 
-              {visibleResultTab === "terms" ? renderTermsPanel() : renderDpaPanel()}
+              {visibleResultTab === "terms" ? renderTermsPanel() : visibleResultTab === "dpa" ? renderDpaPanel() : renderDpiaPanel()}
             </section>
           </section>
         ) : (
@@ -817,6 +998,17 @@ export default function App() {
                       <span>
                         <strong>DPA Review</strong>
                         <small>Article 28 processor obligations, annexes, and privacy controls.</small>
+                      </span>
+                    </label>
+                    <label className={reviewSelection.dpia ? "review-type-card review-type-card-selected" : "review-type-card"}>
+                      <input
+                        type="checkbox"
+                        checked={reviewSelection.dpia}
+                        onChange={() => toggleReviewType("dpia")}
+                      />
+                      <span>
+                        <strong>DPIA Screening</strong>
+                        <small>WP29 threshold check and preliminary impact assessment under Article 35.</small>
                       </span>
                     </label>
                   </div>

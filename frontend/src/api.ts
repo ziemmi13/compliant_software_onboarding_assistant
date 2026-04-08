@@ -1,5 +1,7 @@
 export type RiskLevel = "low" | "medium" | "high" | "unknown";
 export type DpaChecklistStatus = "missing" | "partial" | "unclear" | "satisfied";
+export type DpiaThresholdStatus = "detected" | "not_detected" | "insufficient_info";
+export type DpiaSectionRisk = "low" | "medium" | "high";
 
 export interface ClauseHighlight {
   title: string;
@@ -32,6 +34,37 @@ export interface DpaAnalyzeResponse {
   normalized_domain: string;
   summary: string;
   checklist: DpaChecklistItem[];
+  source_links: string[];
+  supporting_links: string[];
+  blocked_links: string[];
+  confidence_notes: string[];
+  raw_analysis: string;
+}
+
+export interface DpiaThresholdItem {
+  criterion_key: string;
+  criterion_name: string;
+  status: DpiaThresholdStatus;
+  evidence: string;
+  source_url?: string | null;
+}
+
+export interface DpiaSection {
+  section_key: string;
+  section_title: string;
+  content: string;
+  risk_level?: DpiaSectionRisk | null;
+  source_url?: string | null;
+}
+
+export interface DpiaAnalyzeResponse {
+  input_url: string;
+  normalized_domain: string;
+  summary: string;
+  dpia_required: boolean;
+  threshold_score: number;
+  threshold_criteria: DpiaThresholdItem[];
+  dpia_sections: DpiaSection[];
   source_links: string[];
   supporting_links: string[];
   blocked_links: string[];
@@ -146,6 +179,46 @@ export async function analyzeDpaUrl(url: string, companyContext?: string): Promi
   }
 
   return response.json() as Promise<DpaAnalyzeResponse>;
+}
+
+export async function analyzeDpiaUrl(url: string, companyContext?: string): Promise<DpiaAnalyzeResponse> {
+  const trimmedContext = companyContext?.trim();
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}/api/analyze-dpia`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        url,
+        company_context: trimmedContext || undefined,
+      }),
+    });
+  } catch (error) {
+    throw new ApiRequestError("request_failed", error instanceof Error ? error.message : "Unexpected network error.");
+  }
+
+  if (!response.ok) {
+    let errorPayload: ErrorResponse = {
+      error: "request_failed",
+      details: "Unexpected error.",
+    };
+
+    try {
+      const parsed = await response.json();
+      if (parsed?.detail?.error) {
+        errorPayload = parsed.detail;
+      }
+    } catch {
+      // Keep fallback error payload.
+    }
+
+    throw new ApiRequestError(errorPayload.error, errorPayload.details, response.status);
+  }
+
+  return response.json() as Promise<DpiaAnalyzeResponse>;
 }
 
 export async function fetchLinkPreviews(urls: string[]): Promise<LinkPreview[]> {

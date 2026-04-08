@@ -7,10 +7,14 @@ from fastapi.testclient import TestClient
 from api.main import app
 from api.services.analysis_service import AgentAnalysisResult
 from api.services.dpa_analysis_service import DpaAnalysisResult
+from api.services.dpia_analysis_service import DpiaAnalysisResult
 from api.schemas import LinkPreview
 from api.schemas import ClauseHighlight
 from api.schemas import DpaChecklistItem
 from api.schemas import DpaChecklistStatus
+from api.schemas import DpiaThresholdItem
+from api.schemas import DpiaThresholdStatus
+from api.schemas import DpiaSection
 from api.schemas import RiskLevel
 
 
@@ -109,6 +113,68 @@ class ApiRouteTests(unittest.TestCase):
         self.assertEqual(payload["checklist"][0]["status"], "satisfied")
         self.assertEqual(payload["checklist"][0]["source_url"], "https://example.com/legal/data-processing-agreement")
         self.assertEqual(payload["supporting_links"], ["https://example.com/privacy"])
+
+    def test_analyze_dpia_endpoint_success(self) -> None:
+        mock_result = DpiaAnalysisResult(
+            summary="DPIA likely required due to sensitive data and AI processing.",
+            dpia_required=True,
+            threshold_score=3,
+            threshold_criteria=[
+                DpiaThresholdItem(
+                    criterion_key="sensitive_data",
+                    criterion_name="Sensitive data",
+                    status=DpiaThresholdStatus.DETECTED,
+                    evidence="Processes biometric data for authentication.",
+                    source_url="https://example.com/privacy",
+                ),
+                DpiaThresholdItem(
+                    criterion_key="innovative_technology",
+                    criterion_name="Innovative technology",
+                    status=DpiaThresholdStatus.DETECTED,
+                    evidence="Uses AI/ML for risk scoring.",
+                    source_url="https://example.com/privacy",
+                ),
+                DpiaThresholdItem(
+                    criterion_key="large_scale_processing",
+                    criterion_name="Large-scale processing",
+                    status=DpiaThresholdStatus.DETECTED,
+                    evidence="Processes data for millions of users.",
+                    source_url=None,
+                ),
+            ],
+            dpia_sections=[
+                DpiaSection(
+                    section_key="processing_description",
+                    section_title="Systematic description of processing",
+                    content="The service processes employee biometric data for authentication.",
+                    source_url="https://example.com/privacy",
+                ),
+            ],
+            raw_analysis='{"summary":"DPIA likely required.","threshold_criteria":[],"dpia_sections":[]}',
+            source_links=["https://example.com/privacy"],
+            supporting_links=["https://example.com/security"],
+            blocked_links=[],
+        )
+
+        with patch("api.main.run_dpia_analysis", new=AsyncMock(return_value=mock_result)):
+            response = self.client.post(
+                "/api/analyze-dpia",
+                json={
+                    "url": "https://example.com",
+                    "company_context": "AI vendor processing biometric data.",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["summary"], "DPIA likely required due to sensitive data and AI processing.")
+        self.assertTrue(payload["dpia_required"])
+        self.assertEqual(payload["threshold_score"], 3)
+        self.assertEqual(len(payload["threshold_criteria"]), 3)
+        self.assertEqual(payload["threshold_criteria"][0]["status"], "detected")
+        self.assertEqual(len(payload["dpia_sections"]), 1)
+        self.assertEqual(payload["dpia_sections"][0]["section_key"], "processing_description")
+        self.assertEqual(payload["supporting_links"], ["https://example.com/security"])
 
     def test_link_previews_endpoint_success(self) -> None:
         mock_previews = [
