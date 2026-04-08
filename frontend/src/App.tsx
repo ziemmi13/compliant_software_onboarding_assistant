@@ -967,7 +967,7 @@ export default function App() {
               <div className="hero-copy">
                 <h1>Compliant Software Onboarding</h1>
                 <p className="hero-body">
-                  Screen andy software in minutes instead of days.
+                  Screen any software in minutes instead of days.
                 </p>
               </div>
             </header>
@@ -982,7 +982,6 @@ export default function App() {
 
                 <fieldset className="review-type-group">
                   <legend>Select reviews</legend>
-                  <p className="field-note">Pick one or both review types. The system only runs the items you check.</p>
                   <div className="review-type-switch" role="group" aria-label="Review type">
                     <label className={reviewSelection.terms ? "review-type-card review-type-card-selected" : "review-type-card"}>
                       <input
@@ -992,7 +991,6 @@ export default function App() {
                       />
                       <span>
                         <strong>T&amp;C Review</strong>
-                        <small>Terms, platform obligations, liability, and commercial risk.</small>
                       </span>
                     </label>
                     <label className={reviewSelection.dpa ? "review-type-card review-type-card-selected" : "review-type-card"}>
@@ -1003,7 +1001,6 @@ export default function App() {
                       />
                       <span>
                         <strong>DPA Review</strong>
-                        <small>Article 28 processor obligations, annexes, and privacy controls.</small>
                       </span>
                     </label>
                     <label className={reviewSelection.dpia ? "review-type-card review-type-card-selected" : "review-type-card"}>
@@ -1014,17 +1011,13 @@ export default function App() {
                       />
                       <span>
                         <strong>DPIA Screening</strong>
-                        <small>WP29 threshold check and preliminary impact assessment under Article 35.</small>
                       </span>
                     </label>
                   </div>
                 </fieldset>
 
                 <form onSubmit={onSubmit} className="form">
-                  <label htmlFor="url">Insert URL</label>
-                  <p className="field-note field-note-tight">
-                    Paste a homepage, terms page, or DPA link. The app will follow the relevant legal surface from there.
-                  </p>
+                  <label htmlFor="url">Insert software URL</label>
                   <div className="row">
                     <input
                       id="url"
@@ -1039,13 +1032,10 @@ export default function App() {
                   </div>
 
                   <label htmlFor="company-context">Company context</label>
-                  <p className="field-note field-note-tight">
-                    Optional. Add your business model, customer profile, or legal concerns so the review is prioritized correctly.
-                  </p>
                   <textarea
                     id="company-context"
                     className="context-input"
-                    placeholder="Describe the company, product, customers, data sensitivity, or specific legal concerns you want prioritized."
+                    placeholder="Optional. Add your business model, customer profile, or legal concerns so the review is prioritized correctly."
                     value={companyContext}
                     onChange={(e) => setCompanyContext(e.target.value)}
                     rows={3}
