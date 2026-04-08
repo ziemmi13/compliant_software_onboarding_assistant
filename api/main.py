@@ -23,12 +23,15 @@ from api.schemas import DpiaAnalyzeResponse
 from api.schemas import ErrorResponse
 from api.schemas import LinkPreviewRequest
 from api.schemas import LinkPreviewResponse
+from api.schemas import RopaAnalyzeRequest
+from api.schemas import RopaAnalyzeResponse
 from api.services.analysis_service import run_terms_analysis
 from api.services.analysis_service import validate_input_url
 from api.services.dpa_analysis_service import run_dpa_analysis
 from api.services.dpia_analysis_service import run_dpia_analysis
 from api.services.formatter import build_confidence_notes
 from api.services.link_preview_service import fetch_link_previews
+from api.services.ropa_analysis_service import run_ropa_analysis
 
 
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
@@ -36,7 +39,7 @@ load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 app = FastAPI(
     title="Legal Scout API",
     version="0.1.0",
-    description="HTTP wrapper for Legal Scout ADK agents.",
+    description="HTTP wrapper for Legal Scout analysis agents.",
 )
 
 app.add_middleware(
@@ -164,5 +167,39 @@ async def analyze_dpia(request: AnalyzeRequest) -> DpiaAnalyzeResponse:
         supporting_links=result.supporting_links,
         blocked_links=result.blocked_links,
         confidence_notes=build_confidence_notes(result.raw_analysis, result.blocked_links) + result.confidence_notes,
+        raw_analysis=result.raw_analysis,
+    )
+
+
+@app.post("/api/analyze-ropa", response_model=RopaAnalyzeResponse, responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}})
+async def analyze_ropa(request: RopaAnalyzeRequest) -> RopaAnalyzeResponse:
+    try:
+        normalized_url = validate_input_url(str(request.url))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail={"error": "invalid_url", "details": str(exc)}) from exc
+
+    try:
+        result = await run_ropa_analysis(
+            normalized_url,
+            dpa_result=request.dpa_result,
+            dpia_result=request.dpia_result,
+            company_context=request.company_context,
+        )
+    except Exception as exc:
+        logger.exception("ROPA analysis failed for %s", normalized_url)
+        raise HTTPException(
+            status_code=500,
+            detail={"error": "analysis_failed", "details": str(exc)},
+        ) from exc
+
+    parsed = urlparse(normalized_url)
+    return RopaAnalyzeResponse(
+        input_url=normalized_url,
+        normalized_domain=parsed.netloc,
+        summary=result.summary,
+        vendor_name=result.vendor_name,
+        ropa_fields=result.ropa_fields,
+        completeness_score=result.completeness_score,
+        confidence_notes=result.confidence_notes,
         raw_analysis=result.raw_analysis,
     )

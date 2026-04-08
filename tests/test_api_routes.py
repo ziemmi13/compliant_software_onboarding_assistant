@@ -8,6 +8,7 @@ from api.main import app
 from api.services.analysis_service import AgentAnalysisResult
 from api.services.dpa_analysis_service import DpaAnalysisResult
 from api.services.dpia_analysis_service import DpiaAnalysisResult
+from api.services.ropa_analysis_service import RopaAnalysisResult
 from api.schemas import LinkPreview
 from api.schemas import ClauseHighlight
 from api.schemas import DpaChecklistItem
@@ -16,6 +17,9 @@ from api.schemas import DpiaThresholdItem
 from api.schemas import DpiaThresholdStatus
 from api.schemas import DpiaSection
 from api.schemas import DpiaSectionFinding
+from api.schemas import RopaField
+from api.schemas import RopaFieldEntry
+from api.schemas import RopaFieldStatus
 from api.schemas import RiskLevel
 
 
@@ -176,6 +180,103 @@ class ApiRouteTests(unittest.TestCase):
         self.assertEqual(len(payload["dpia_sections"]), 1)
         self.assertEqual(payload["dpia_sections"][0]["section_key"], "processing_description")
         self.assertEqual(payload["supporting_links"], ["https://example.com/security"])
+
+    def test_analyze_ropa_endpoint_success(self) -> None:
+        mock_result = RopaAnalysisResult(
+            summary="ROPA entry synthesized from the DPA and DPIA review.",
+            vendor_name="Example",
+            ropa_fields=[
+                RopaField(
+                    field_key="purposes_of_processing",
+                    field_title="Purposes of processing",
+                    article_ref="Art. 30(1)(b)",
+                    status=RopaFieldStatus.POPULATED,
+                    entries=[
+                        RopaFieldEntry(
+                            title="Access management",
+                            detail="Provide user authentication and account administration.",
+                        )
+                    ],
+                    source_notes=["Derived from DPIA processing description."],
+                )
+            ],
+            completeness_score=63,
+            confidence_notes=["Controller-side validation is still required before final registration."],
+            raw_analysis='{"summary":"ROPA entry synthesized.","vendor_name":"Example","ropa_fields":[]}',
+        )
+
+        with patch("api.main.run_ropa_analysis", new=AsyncMock(return_value=mock_result)):
+            response = self.client.post(
+                "/api/analyze-ropa",
+                json={
+                    "url": "https://example.com",
+                    "company_context": "HR SaaS vendor onboarding for employee account management.",
+                    "dpa_result": {
+                        "input_url": "https://example.com/",
+                        "normalized_domain": "example.com",
+                        "summary": "DPA summary.",
+                        "checklist": [
+                            {
+                                "requirement_key": "security_measures",
+                                "requirement_title": "Security measures",
+                                "status": "satisfied",
+                                "rationale": "Security annex is available.",
+                                "source_url": "https://example.com/legal/dpa"
+                            }
+                        ],
+                        "source_links": ["https://example.com/legal/dpa"],
+                        "supporting_links": [],
+                        "blocked_links": [],
+                        "confidence_notes": [],
+                        "raw_analysis": "{}"
+                    },
+                    "dpia_result": {
+                        "input_url": "https://example.com/",
+                        "normalized_domain": "example.com",
+                        "summary": "DPIA summary.",
+                        "dpia_required": True,
+                        "threshold_score": 2,
+                        "threshold_criteria": [
+                            {
+                                "criterion_key": "innovative_technology",
+                                "criterion_name": "Innovative technology",
+                                "status": "detected",
+                                "evidence": "Uses AI for anomaly scoring.",
+                                "source_url": "https://example.com/privacy"
+                            }
+                        ],
+                        "dpia_sections": [
+                            {
+                                "section_key": "processing_description",
+                                "section_title": "Systematic description of processing",
+                                "findings": [
+                                    {
+                                        "title": "Data processed",
+                                        "detail": "Employee names and authentication logs."
+                                    }
+                                ],
+                                "risk_level": None,
+                                "source_url": "https://example.com/privacy"
+                            }
+                        ],
+                        "source_links": ["https://example.com/privacy"],
+                        "supporting_links": [],
+                        "blocked_links": [],
+                        "confidence_notes": [],
+                        "raw_analysis": "{}"
+                    }
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["input_url"], "https://example.com/")
+        self.assertEqual(payload["normalized_domain"], "example.com")
+        self.assertEqual(payload["vendor_name"], "Example")
+        self.assertEqual(payload["completeness_score"], 63)
+        self.assertEqual(len(payload["ropa_fields"]), 1)
+        self.assertEqual(payload["ropa_fields"][0]["field_key"], "purposes_of_processing")
+        self.assertEqual(payload["confidence_notes"][0], "Controller-side validation is still required before final registration.")
 
     def test_link_previews_endpoint_success(self) -> None:
         mock_previews = [

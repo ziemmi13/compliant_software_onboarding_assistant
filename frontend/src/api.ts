@@ -2,6 +2,7 @@ export type RiskLevel = "low" | "medium" | "high" | "unknown";
 export type DpaChecklistStatus = "missing" | "partial" | "unclear" | "satisfied";
 export type DpiaThresholdStatus = "detected" | "not_detected" | "insufficient_info";
 export type DpiaSectionRisk = "low" | "medium" | "high";
+export type RopaFieldStatus = "populated" | "partial" | "placeholder";
 
 export interface ClauseHighlight {
   title: string;
@@ -73,6 +74,31 @@ export interface DpiaAnalyzeResponse {
   source_links: string[];
   supporting_links: string[];
   blocked_links: string[];
+  confidence_notes: string[];
+  raw_analysis: string;
+}
+
+export interface RopaFieldEntry {
+  title: string;
+  detail: string;
+}
+
+export interface RopaField {
+  field_key: string;
+  field_title: string;
+  article_ref: string;
+  status: RopaFieldStatus;
+  entries: RopaFieldEntry[];
+  source_notes: string[];
+}
+
+export interface RopaAnalyzeResponse {
+  input_url: string;
+  normalized_domain: string;
+  summary: string;
+  vendor_name: string;
+  ropa_fields: RopaField[];
+  completeness_score: number;
   confidence_notes: string[];
   raw_analysis: string;
 }
@@ -224,6 +250,53 @@ export async function analyzeDpiaUrl(url: string, companyContext?: string): Prom
   }
 
   return response.json() as Promise<DpiaAnalyzeResponse>;
+}
+
+export async function analyzeRopaUrl(
+  url: string,
+  dpaResult: DpaAnalyzeResponse,
+  dpiaResult: DpiaAnalyzeResponse,
+  companyContext?: string
+): Promise<RopaAnalyzeResponse> {
+  const trimmedContext = companyContext?.trim();
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}/api/analyze-ropa`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        url,
+        company_context: trimmedContext || undefined,
+        dpa_result: dpaResult,
+        dpia_result: dpiaResult,
+      }),
+    });
+  } catch (error) {
+    throw new ApiRequestError("request_failed", error instanceof Error ? error.message : "Unexpected network error.");
+  }
+
+  if (!response.ok) {
+    let errorPayload: ErrorResponse = {
+      error: "request_failed",
+      details: "Unexpected error.",
+    };
+
+    try {
+      const parsed = await response.json();
+      if (parsed?.detail?.error) {
+        errorPayload = parsed.detail;
+      }
+    } catch {
+      // Keep fallback error payload.
+    }
+
+    throw new ApiRequestError(errorPayload.error, errorPayload.details, response.status);
+  }
+
+  return response.json() as Promise<RopaAnalyzeResponse>;
 }
 
 export async function fetchLinkPreviews(urls: string[]): Promise<LinkPreview[]> {

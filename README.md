@@ -41,6 +41,9 @@ Backend endpoints:
 
 - `GET /health`
 - `POST /api/analyze`
+- `POST /api/analyze-dpa`
+- `POST /api/analyze-dpia`
+- `POST /api/analyze-ropa`
 
 ## Frontend
 

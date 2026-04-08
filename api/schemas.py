@@ -33,6 +33,12 @@ class DpiaSectionRisk(str, Enum):
     HIGH = "high"
 
 
+class RopaFieldStatus(str, Enum):
+    POPULATED = "populated"
+    PARTIAL = "partial"
+    PLACEHOLDER = "placeholder"
+
+
 class AnalyzeRequest(BaseModel):
     url: AnyHttpUrl
     company_context: str | None = Field(default=None, max_length=2000)
@@ -129,5 +135,35 @@ class DpiaAnalyzeResponse(BaseModel):
     source_links: list[str] = Field(default_factory=list)
     supporting_links: list[str] = Field(default_factory=list)
     blocked_links: list[str] = Field(default_factory=list)
+    confidence_notes: list[str] = Field(default_factory=list)
+    raw_analysis: str
+
+
+class RopaFieldEntry(BaseModel):
+    title: str = Field(min_length=1)
+    detail: str = Field(min_length=1)
+
+
+class RopaField(BaseModel):
+    field_key: str = Field(min_length=1)
+    field_title: str = Field(min_length=1)
+    article_ref: str = Field(min_length=1)
+    status: RopaFieldStatus = RopaFieldStatus.PLACEHOLDER
+    entries: list[RopaFieldEntry] = Field(default_factory=list)
+    source_notes: list[str] = Field(default_factory=list)
+
+
+class RopaAnalyzeRequest(AnalyzeRequest):
+    dpa_result: DpaAnalyzeResponse
+    dpia_result: DpiaAnalyzeResponse
+
+
+class RopaAnalyzeResponse(BaseModel):
+    input_url: str
+    normalized_domain: str
+    summary: str
+    vendor_name: str
+    ropa_fields: list[RopaField] = Field(default_factory=list)
+    completeness_score: int = Field(ge=0, le=100)
     confidence_notes: list[str] = Field(default_factory=list)
     raw_analysis: str

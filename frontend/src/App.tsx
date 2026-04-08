@@ -1,20 +1,22 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 
-import { AnalyzeResponse, ApiRequestError, DpaAnalyzeResponse, DpaChecklistItem, DpiaAnalyzeResponse, DpiaThresholdItem, LinkPreview, analyzeDpaUrl, analyzeDpiaUrl, analyzeUrl, fetchLinkPreviews } from "./api";
+import { AnalyzeResponse, ApiRequestError, DpaAnalyzeResponse, DpaChecklistItem, DpiaAnalyzeResponse, DpiaThresholdItem, LinkPreview, RopaAnalyzeResponse, RopaField, analyzeDpaUrl, analyzeDpiaUrl, analyzeRopaUrl, analyzeUrl, fetchLinkPreviews } from "./api";
 
 type ReviewSelection = {
   terms: boolean;
   dpa: boolean;
   dpia: boolean;
+  ropa: boolean;
 };
 
 type AnalysisResults = {
   terms: AnalyzeResponse | null;
   dpa: DpaAnalyzeResponse | null;
   dpia: DpiaAnalyzeResponse | null;
+  ropa: RopaAnalyzeResponse | null;
 };
 
-type ResultTab = "terms" | "dpa" | "dpia";
+type ResultTab = "terms" | "dpa" | "dpia" | "ropa";
 type ViewMode = "input" | "review";
 
 type ModuleExecutionResult<T> = {
@@ -96,6 +98,16 @@ function countThresholdByStatus(result: DpiaAnalyzeResponse) {
   );
 }
 
+function countRopaFieldsByStatus(result: RopaAnalyzeResponse) {
+  return result.ropa_fields.reduce(
+    (counts, item) => {
+      counts[item.status] += 1;
+      return counts;
+    },
+    { populated: 0, partial: 0, placeholder: 0 }
+  );
+}
+
 function getThresholdStatusLabel(item: DpiaThresholdItem) {
   return item.status.replace(/_/g, " ");
 }
@@ -118,7 +130,7 @@ function getSupportingLinkHref(link: string, preview?: LinkPreview | null) {
 }
 
 function hasAnySelection(selection: ReviewSelection) {
-  return selection.terms || selection.dpa || selection.dpia;
+  return selection.terms || selection.dpa || selection.dpia || selection.ropa;
 }
 
 function getSelectionLabel(selection: ReviewSelection) {
@@ -126,6 +138,7 @@ function getSelectionLabel(selection: ReviewSelection) {
   if (selection.terms) parts.push("T&C");
   if (selection.dpa) parts.push("DPA");
   if (selection.dpia) parts.push("DPIA");
+  if (selection.ropa) parts.push("ROPA");
   return parts.join(" and ") || "T&C";
 }
 
@@ -166,9 +179,19 @@ function hasDpiaAnswer(result: DpiaAnalyzeResponse) {
   );
 }
 
+function hasRopaAnswer(result: RopaAnalyzeResponse) {
+  return result.summary.trim().length > 0 || result.ropa_fields.length > 0;
+}
+
 function formatModuleFailureMessage(kind: ResultTab, error: unknown) {
-  const moduleLabel = kind === "terms" ? "T&C" : kind === "dpa" ? "DPA" : "DPIA";
-  const specificUrlHint = kind === "terms" ? "a direct terms URL" : kind === "dpa" ? "a direct DPA URL" : "a direct privacy policy URL";
+  const moduleLabel = kind === "terms" ? "T&C" : kind === "dpa" ? "DPA" : kind === "dpia" ? "DPIA" : "ROPA";
+  const specificUrlHint = kind === "terms"
+    ? "a direct terms URL"
+    : kind === "dpa"
+      ? "a direct DPA URL"
+      : kind === "dpia"
+        ? "a direct privacy policy URL"
+        : "rerunning the DPA and DPIA review";
 
   if (error instanceof ApiRequestError) {
     if (error.code === "invalid_url") {
@@ -185,13 +208,13 @@ export default function App() {
   const activeRequestIdRef = useRef(0);
   const [url, setUrl] = useState("");
   const [companyContext, setCompanyContext] = useState("");
-  const [reviewSelection, setReviewSelection] = useState<ReviewSelection>({ terms: true, dpa: true, dpia: false });
+  const [reviewSelection, setReviewSelection] = useState<ReviewSelection>({ terms: true, dpa: true, dpia: false, ropa: false });
   const [viewMode, setViewMode] = useState<ViewMode>("input");
   const [loading, setLoading] = useState(false);
   const [loadingStageIndex, setLoadingStageIndex] = useState(0);
   const [loadingElapsedSeconds, setLoadingElapsedSeconds] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [results, setResults] = useState<AnalysisResults>({ terms: null, dpa: null, dpia: null });
+  const [results, setResults] = useState<AnalysisResults>({ terms: null, dpa: null, dpia: null, ropa: null });
   const [supportingLinkPreviews, setSupportingLinkPreviews] = useState<Record<string, LinkPreview>>({});
   const [activeResultTab, setActiveResultTab] = useState<ResultTab>("terms");
 
@@ -280,10 +303,10 @@ export default function App() {
 
     setLoading(true);
     setError(null);
-    setResults({ terms: null, dpa: null, dpia: null });
+    setResults({ terms: null, dpa: null, dpia: null, ropa: null });
     setSupportingLinkPreviews({});
     setActiveResultTab(
-      reviewSelection.terms ? "terms" : reviewSelection.dpa ? "dpa" : "dpia"
+      reviewSelection.terms ? "terms" : reviewSelection.ropa ? "ropa" : reviewSelection.dpa ? "dpa" : "dpia"
     );
 
     try {
@@ -303,7 +326,11 @@ export default function App() {
             errorMessage:
               kind === "dpa"
                 ? "DPA analysis did not return structured checklist output."
-                : "T&C analysis did not return an answer.",
+                : kind === "dpia"
+                  ? "DPIA analysis did not return structured screening output."
+                  : kind === "ropa"
+                    ? "ROPA synthesis did not return a structured registry output."
+                    : "T&C analysis did not return an answer.",
           };
         } catch (error) {
           return { analysis: null, errorMessage: formatModuleFailureMessage(kind, error) };
@@ -325,8 +352,25 @@ export default function App() {
         terms: termsResult.analysis,
         dpa: dpaResult.analysis,
         dpia: dpiaResult.analysis,
+        ropa: null,
       };
       const failures = [termsResult.errorMessage, dpaResult.errorMessage, dpiaResult.errorMessage].filter(Boolean) as string[];
+
+      if (reviewSelection.ropa) {
+        if (nextResults.dpa && nextResults.dpia) {
+          const ropaResult = await executeOnce(
+            "ropa",
+            () => analyzeRopaUrl(url.trim(), nextResults.dpa as DpaAnalyzeResponse, nextResults.dpia as DpiaAnalyzeResponse, companyContext),
+            hasRopaAnswer
+          );
+          nextResults.ropa = ropaResult.analysis;
+          if (ropaResult.errorMessage) {
+            failures.push(ropaResult.errorMessage);
+          }
+        } else {
+          failures.push("ROPA synthesis requires both DPA and DPIA results, so the registry view could not be generated.");
+        }
+      }
 
       if (activeRequestIdRef.current !== requestId) {
         return;
@@ -334,7 +378,7 @@ export default function App() {
 
       setResults(nextResults);
 
-      if (nextResults.terms || nextResults.dpa) {
+      if (nextResults.terms || nextResults.dpa || nextResults.dpia || nextResults.ropa) {
         setViewMode("review");
       }
 
@@ -359,9 +403,31 @@ export default function App() {
   };
 
   const toggleReviewType = (reviewType: keyof ReviewSelection) => {
-    setReviewSelection((current) => ({ ...current, [reviewType]: !current[reviewType] }));
+    setReviewSelection((current) => {
+      if (reviewType === "ropa") {
+        const nextRopa = !current.ropa;
+        return {
+          ...current,
+          ropa: nextRopa,
+          dpa: nextRopa ? true : current.dpa,
+          dpia: nextRopa ? true : current.dpia,
+        };
+      }
+
+      if (reviewType === "dpa") {
+        const nextDpa = !current.dpa;
+        return { ...current, dpa: nextDpa, ropa: nextDpa ? current.ropa : false };
+      }
+
+      if (reviewType === "dpia") {
+        const nextDpia = !current.dpia;
+        return { ...current, dpia: nextDpia, ropa: nextDpia ? current.ropa : false };
+      }
+
+      return { ...current, [reviewType]: !current[reviewType] };
+    });
     setError(null);
-    setResults({ terms: null, dpa: null, dpia: null });
+    setResults({ terms: null, dpa: null, dpia: null, ropa: null });
     setSupportingLinkPreviews({});
     setViewMode("input");
   };
@@ -371,7 +437,7 @@ export default function App() {
     setLoading(false);
     setViewMode("input");
     setError(null);
-    setResults({ terms: null, dpa: null, dpia: null });
+    setResults({ terms: null, dpa: null, dpia: null, ropa: null });
     setSupportingLinkPreviews({});
   };
 
@@ -399,6 +465,7 @@ export default function App() {
   const termsRiskCounts = results.terms ? countHighlightsByRisk(results.terms) : null;
   const dpaChecklistCounts = results.dpa ? countChecklistByStatus(results.dpa) : null;
   const dpiaThresholdCounts = results.dpia ? countThresholdByStatus(results.dpia) : null;
+  const ropaFieldCounts = results.ropa ? countRopaFieldsByStatus(results.ropa) : null;
 
   const getCoverageLabel = (sourceLinks: string[], blockedLinks: string[]) => {
     if (blockedLinks.length > 0) {
@@ -408,11 +475,16 @@ export default function App() {
     return sourceLinks.length > 0 ? "Good" : "Limited";
   };
 
-  const hasResults = Boolean(results.terms || results.dpa || results.dpia);
-  const availableTabs: ResultTab[] = [results.terms ? "terms" : null, results.dpa ? "dpa" : null, results.dpia ? "dpia" : null].filter(Boolean) as ResultTab[];
+  const hasResults = Boolean(results.terms || results.dpa || results.dpia || results.ropa);
+  const availableTabs: ResultTab[] = [results.terms ? "terms" : null, results.dpa ? "dpa" : null, results.dpia ? "dpia" : null, results.ropa ? "ropa" : null].filter(Boolean) as ResultTab[];
   const visibleResultTab = availableTabs.includes(activeResultTab) ? activeResultTab : availableTabs[0] ?? "terms";
 
   useEffect(() => {
+    if (results.ropa && !results.terms && !results.dpa && !results.dpia) {
+      setActiveResultTab("ropa");
+      return;
+    }
+
     if (results.terms && !results.dpa && !results.dpia) {
       setActiveResultTab("terms");
       return;
@@ -423,10 +495,104 @@ export default function App() {
       return;
     }
 
-    if (results.dpia && !results.terms && !results.dpa) {
+    if (results.dpia && !results.terms && !results.dpa && !results.ropa) {
       setActiveResultTab("dpia");
     }
-  }, [results.dpa, results.dpia, results.terms]);
+  }, [results.dpa, results.dpia, results.ropa, results.terms]);
+
+  const renderRopaPanel = () => {
+    if (!results.ropa) {
+      return null;
+    }
+
+    return (
+      <section className="result-block">
+        <section className="results-topbar simple-topbar">
+          <div className="topbar-metrics compact-metrics">
+            <span className="topbar-pill topbar-pill-satisfied">Populated {ropaFieldCounts?.populated ?? 0}</span>
+            <span className="topbar-pill topbar-pill-partial">Partial {ropaFieldCounts?.partial ?? 0}</span>
+            <span className="topbar-pill topbar-pill-coverage">Placeholders {ropaFieldCounts?.placeholder ?? 0}</span>
+            <span className="topbar-pill topbar-pill-sources">Completeness {results.ropa.completeness_score}%</span>
+          </div>
+        </section>
+
+        <div className="results-primary">
+          <article className="card summary-card narrative-card">
+            <div className="card-header">
+              <h2>ROPA Summary</h2>
+            </div>
+            <p className="summary-copy">{results.ropa.summary}</p>
+            <div className="ropa-summary-meta">
+              <span className="topbar-pill topbar-pill-coverage">Vendor {results.ropa.vendor_name}</span>
+              <span className="topbar-pill topbar-pill-sources">Article 30 record</span>
+            </div>
+          </article>
+
+          <article className="card highlights-card narrative-card">
+            <div className="card-header">
+              <h2>Record of Processing Activities</h2>
+            </div>
+            <div className="ropa-field-list">
+              {results.ropa.ropa_fields.map((field: RopaField) => (
+                <article key={field.field_key} className={`ropa-field-card ropa-field-card-${field.status}`}>
+                  <div className="ropa-field-header">
+                    <div>
+                      <h3>{field.field_title}</h3>
+                      <p>{field.article_ref}</p>
+                    </div>
+                    <span className={`ropa-field-status ropa-field-status-${field.status}`}>{field.status}</span>
+                  </div>
+
+                  {field.entries.length === 0 ? (
+                    <p className="muted-copy">No structured entries were returned for this field.</p>
+                  ) : (
+                    <ul className="ropa-entry-list">
+                      {field.entries.map((entry, index) => (
+                        <li key={`${field.field_key}-${index}`} className="ropa-entry-card">
+                          <strong>{entry.title}</strong>
+                          <p>{entry.detail}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  {field.source_notes.length > 0 && (
+                    <div className="ropa-source-notes">
+                      <h4>Source notes</h4>
+                      <ul>
+                        {field.source_notes.map((note, index) => (
+                          <li key={`${field.field_key}-note-${index}`}>{note}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </article>
+              ))}
+            </div>
+          </article>
+
+          <article className="card evidence-card narrative-card">
+            <div className="card-header">
+              <h2>Completeness</h2>
+            </div>
+            <div className="ropa-completeness-bar" aria-hidden="true">
+              <div className="ropa-completeness-fill" style={{ width: `${results.ropa.completeness_score}%` }} />
+            </div>
+            <p className="summary-copy ropa-completeness-copy">
+              {results.ropa.completeness_score}% of the Article 30 record is populated from the available DPA and DPIA material.
+            </p>
+            {results.ropa.confidence_notes.length > 0 && (
+              <ul className="source-list ropa-confidence-list">
+                {results.ropa.confidence_notes.map((note, index) => (
+                  <li key={`confidence-${index}`}>{note}</li>
+                ))}
+              </ul>
+            )}
+          </article>
+        </div>
+      </section>
+    );
+  };
 
   const renderTermsPanel = () => {
     if (!results.terms) {
@@ -798,7 +964,9 @@ export default function App() {
               </div>
               <h1 className="review-mode-heading">{reviewModeTitle}</h1>
               <p className="review-mode-body">
-                {reviewSelection.dpia
+                {reviewSelection.ropa
+                  ? "COMPL.AI is running the DPA and DPIA reviews first, then synthesizing them into an Article 30 record of processing activities."
+                  : reviewSelection.dpia
                   ? "COMPL.AI is screening the vendor's data processing against the WP29 threshold criteria and preparing a DPIA assessment."
                   : reviewSelection.terms && reviewSelection.dpa
                     ? "COMPL.AI is running both the contractual review and the DPA review before assembling the combined report."
@@ -815,7 +983,9 @@ export default function App() {
                 <article className="review-mode-note">
                   <strong>Output</strong>
                   <p>
-                    {reviewSelection.terms && reviewSelection.dpa
+                    {reviewSelection.ropa
+                      ? "Preparing a registry-style Article 30 record from the DPA checklist and DPIA findings."
+                      : reviewSelection.terms && reviewSelection.dpa
                       ? "Preparing a combined report with ranked T&C issues and a cited DPA checklist."
                       : reviewSelection.dpa
                         ? "Preparing a structured Article 28 checklist with cited privacy control findings."
@@ -946,6 +1116,18 @@ export default function App() {
                       <span>DPIA</span>
                     </button>
                   )}
+                  {results.ropa && (
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={visibleResultTab === "ropa"}
+                      aria-label="Show R O P A results"
+                      className={visibleResultTab === "ropa" ? "results-tab results-tab-active" : "results-tab"}
+                      onClick={() => setActiveResultTab("ropa")}
+                    >
+                      <span>ROPA</span>
+                    </button>
+                  )}
                 </div>
               )}
               </div>
@@ -958,7 +1140,13 @@ export default function App() {
 
             <section className="results results-stack">
 
-              {visibleResultTab === "terms" ? renderTermsPanel() : visibleResultTab === "dpa" ? renderDpaPanel() : renderDpiaPanel()}
+              {visibleResultTab === "terms"
+                ? renderTermsPanel()
+                : visibleResultTab === "dpa"
+                  ? renderDpaPanel()
+                  : visibleResultTab === "dpia"
+                    ? renderDpiaPanel()
+                    : renderRopaPanel()}
             </section>
           </section>
         ) : (
@@ -1011,6 +1199,17 @@ export default function App() {
                       />
                       <span>
                         <strong>DPIA Screening</strong>
+                      </span>
+                    </label>
+                    <label className={reviewSelection.ropa ? "review-type-card review-type-card-selected" : "review-type-card"}>
+                      <input
+                        type="checkbox"
+                        checked={reviewSelection.ropa}
+                        onChange={() => toggleReviewType("ropa")}
+                      />
+                      <span>
+                        <strong>ROPA Synthesis</strong>
+                        <small>Build an Article 30 register from the DPA and DPIA outputs.</small>
                       </span>
                     </label>
                   </div>

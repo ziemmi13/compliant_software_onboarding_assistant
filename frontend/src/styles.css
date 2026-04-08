@@ -420,6 +420,151 @@ textarea:focus {
   font-size: 0.95rem;
 }
 
+.ropa-summary-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
+.ropa-field-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.ropa-field-card {
+  padding: 1rem 1.05rem;
+  border: 1px solid rgba(0, 33, 71, 0.1);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.75);
+}
+
+.ropa-field-card-populated {
+  border-color: rgba(25, 103, 74, 0.22);
+}
+
+.ropa-field-card-partial {
+  border-color: rgba(176, 154, 114, 0.32);
+}
+
+.ropa-field-card-placeholder {
+  border-color: rgba(112, 128, 144, 0.24);
+}
+
+.ropa-field-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.9rem;
+}
+
+.ropa-field-header h3 {
+  margin: 0;
+  color: var(--navy);
+  font-size: 1.02rem;
+}
+
+.ropa-field-header p {
+  margin: 0.3rem 0 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.ropa-field-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.ropa-field-status-populated {
+  background: rgba(25, 103, 74, 0.12);
+  color: #19674a;
+}
+
+.ropa-field-status-partial {
+  background: rgba(176, 154, 114, 0.18);
+  color: #7b6940;
+}
+
+.ropa-field-status-placeholder {
+  background: rgba(112, 128, 144, 0.14);
+  color: #4d6071;
+}
+
+.ropa-entry-list {
+  display: grid;
+  gap: 0.8rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ropa-entry-card {
+  padding: 0.85rem 0.9rem;
+  border-radius: 14px;
+  background: rgba(245, 245, 240, 0.9);
+}
+
+.ropa-entry-card strong {
+  display: block;
+  margin-bottom: 0.25rem;
+  color: var(--navy);
+}
+
+.ropa-entry-card p {
+  margin: 0;
+  color: var(--ink);
+  line-height: 1.6;
+}
+
+.ropa-source-notes {
+  margin-top: 0.95rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid rgba(0, 33, 71, 0.08);
+}
+
+.ropa-source-notes h4 {
+  margin: 0 0 0.45rem;
+  color: var(--navy);
+  font-size: 0.9rem;
+}
+
+.ropa-source-notes ul,
+.ropa-confidence-list {
+  margin: 0;
+  padding-left: 1.15rem;
+  color: var(--muted);
+}
+
+.ropa-source-notes li,
+.ropa-confidence-list li {
+  line-height: 1.6;
+}
+
+.ropa-completeness-bar {
+  width: 100%;
+  height: 0.85rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(0, 33, 71, 0.08);
+}
+
+.ropa-completeness-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #b09a72 0%, #002147 100%);
+}
+
+.ropa-completeness-copy {
+  margin-top: 0.9rem;
+}
+
 .field-note-tight {
   margin-top: -0.45rem;
 }
