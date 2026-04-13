@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 
 import { AnalyzeResponse, ApiRequestError, DpaAnalyzeResponse, DpaChecklistItem, DpiaAnalyzeResponse, DpiaThresholdItem, LinkPreview, RopaAnalyzeResponse, RopaField, analyzeDpaUrl, analyzeDpiaUrl, analyzeRopaUrl, analyzeUrl, fetchLinkPreviews } from "./api";
 
@@ -1114,13 +1115,13 @@ export default function App() {
       <main className={showReviewScreen ? "page page-review" : "page"}>
         <header className="topbar">
           {showLogoHomeAction ? (
-            <button type="button" className="brand-lockup brand-lockup-button" onClick={returnToSetup} aria-label="Return to front page">
+            <Link to="/" className="brand-lockup brand-lockup-button" aria-label="Return to front page">
               <img className="topbar-logo" src="/comp_ai-logo.png" alt="Comp AI" />
-            </button>
+            </Link>
           ) : (
-            <div className="brand-lockup" aria-label="COMPL.AI">
+            <Link to="/" className="brand-lockup brand-lockup-button" aria-label="COMPL.AI">
               <img className="topbar-logo" src="/comp_ai-logo.png" alt="Comp AI" />
-            </div>
+            </Link>
           )}
           <nav className="top-tabs" aria-label="Primary">
             <button type="button" className="top-tab top-tab-active">
