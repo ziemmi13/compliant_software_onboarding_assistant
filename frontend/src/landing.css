@@ -191,6 +191,39 @@
   color: rgba(228, 230, 235, 0.58);
 }
 
+.landing-subtitle {
+  max-width: 36rem;
+  margin: 0 0 2.5rem;
+  font-size: 1.12rem;
+  line-height: 1.75;
+  color: rgba(228, 230, 235, 0.58);
+}
+
+.landing-subtitle-highlight {
+  background: linear-gradient(135deg, #c9b88a 0%, #e8dbc4 80%, #a89468 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-weight: 1000;
+  font-size: 1.55rem;
+}
+
+.landing-subtitle-url {
+  display: inline-block;
+  margin-top: 0.15rem;
+  font-weight: 700;
+  font-size: 1.25rem;
+  letter-spacing: 0.01em;
+  color: #fff;
+  text-shadow: 0 0 24px rgba(90, 120, 220, 0.5), 0 0 60px rgba(90, 120, 220, 0.25);
+  animation: landing-url-glow 3s ease-in-out infinite;
+}
+
+@keyframes landing-url-glow {
+  0%, 100% { text-shadow: 0 0 24px rgba(90, 120, 220, 0.5), 0 0 60px rgba(90, 120, 220, 0.25); }
+  50% { text-shadow: 0 0 32px rgba(90, 120, 220, 0.7), 0 0 80px rgba(90, 120, 220, 0.35), 0 0 120px rgba(176, 154, 114, 0.15); }
+}
+
 .landing-cta-group {
   display: flex;
   align-items: center;

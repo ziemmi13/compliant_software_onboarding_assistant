@@ -25,9 +25,11 @@ export default function LandingPage() {
           <span className="landing-hero-accent">minutes</span>
         </h1>
 
-        <p className="landing-fade-up landing-fade-up-delay-3">
-          Screen any software vendor's legal surface: T&amp;Cs, DPA, DPIA, and
-          ROPA — with a single URL.
+        <p className="landing-subtitle landing-fade-up landing-fade-up-delay-3">
+          Screen any software vendor's legal surface
+          <br />
+          <span className="landing-subtitle-highlight">With a single URL</span>
+          <br />
         </p>
 
         <div className="landing-cta-group landing-fade-up landing-fade-up-delay-4">
