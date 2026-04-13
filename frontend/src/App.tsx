@@ -246,6 +246,7 @@ export default function App() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Load sessions from localStorage on mount and auto-restore the most recent one
   useEffect(() => {
@@ -1032,19 +1033,33 @@ export default function App() {
   const showReviewScreen = viewMode === "review" && hasResults;
   const showLogoHomeAction = loading || showReviewScreen;
 
-  const hasSidebar = sessions.length > 0;
   return (
     <>
-      {hasSidebar && (
-        <aside className="sessions-sidebar">
+      <aside className={sidebarCollapsed ? "sessions-sidebar sessions-sidebar-collapsed" : "sessions-sidebar"}>
           <div className="sidebar-header">
-            <p className="sidebar-title">Analyses</p>
-            <button type="button" className="sidebar-new-btn" onClick={returnToSetup}>
-              + New analysis
-            </button>
+            <div className="sidebar-header-row">
+              {!sidebarCollapsed && <p className="sidebar-title">Sessions</p>}
+              <button
+                type="button"
+                className="sidebar-collapse-btn"
+                aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                onClick={() => setSidebarCollapsed((c) => !c)}
+              >
+                {sidebarCollapsed ? "»" : "«"}
+              </button>
+            </div>
+            {!sidebarCollapsed && (
+              <button type="button" className="sidebar-new-btn" onClick={returnToSetup}>
+                + New session
+              </button>
+            )}
           </div>
+          {!sidebarCollapsed && (
           <div className="sidebar-sessions">
-            {sessions.map((session) => (
+            {sessions.length === 0 ? (
+              <p className="sidebar-empty">Your completed analyses will appear here.</p>
+            ) : (
+              sessions.map((session) => (
               <div
                 key={session.id}
                 className={session.id === activeSessionId ? "sidebar-session-item sidebar-session-item-active" : "sidebar-session-item"}
@@ -1088,11 +1103,12 @@ export default function App() {
                   </button>
                 )}
               </div>
-            ))}
+            ))
+            )}
           </div>
+          )}
         </aside>
-      )}
-      <main className={hasSidebar ? "page-shell page-shell-with-sidebar" : "page-shell"}>
+      <main className={sidebarCollapsed ? "page-shell page-shell-with-sidebar-collapsed" : "page-shell page-shell-with-sidebar"}>
         <div className="page-orb page-orb-left" />
         <div className="page-orb page-orb-right" />
       <main className={showReviewScreen ? "page page-review" : "page"}>
