@@ -68,6 +68,9 @@ const LOADING_STAGES = [
 
 const FINAL_STAGE_SLOW_THRESHOLD_SECONDS = 8;
 
+const SESSIONS_KEY = "legal_scout_sessions";
+const SESSIONS_VERSION = 1;
+
 function countHighlightsByRisk(result: AnalyzeResponse) {
   return result.highlights.reduce(
     (counts, item) => {
@@ -204,6 +207,27 @@ function formatModuleFailureMessage(kind: ResultTab, error: unknown) {
   return `${moduleLabel} analysis failed. Try again or use ${specificUrlHint}.`;
 }
 
+type SavedSession = {
+  id: string;
+  createdAt: string;
+  url: string;
+  normalizedDomain: string;
+  companyContext: string;
+  reviewSelection: ReviewSelection;
+  results: AnalysisResults;
+  activeResultTab: ResultTab;
+};
+
+function formatSessionDate(isoString: string): string {
+  const date = new Date(isoString);
+  const now = new Date();
+  const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return `${diffDays} days ago`;
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
 export default function App() {
   const activeRequestIdRef = useRef(0);
   const [url, setUrl] = useState("");
@@ -217,6 +241,40 @@ export default function App() {
   const [results, setResults] = useState<AnalysisResults>({ terms: null, dpa: null, dpia: null, ropa: null });
   const [supportingLinkPreviews, setSupportingLinkPreviews] = useState<Record<string, LinkPreview>>({});
   const [activeResultTab, setActiveResultTab] = useState<ResultTab>("terms");
+  const [sessions, setSessions] = useState<SavedSession[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+
+  // Load sessions from localStorage on mount and auto-restore the most recent one
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(SESSIONS_KEY);
+      if (!raw) return;
+      const data = JSON.parse(raw) as { v: number; sessions: SavedSession[] };
+      if (data.v !== SESSIONS_VERSION || !Array.isArray(data.sessions)) return;
+      setSessions(data.sessions);
+      if (data.sessions.length > 0) {
+        const last = data.sessions[0];
+        setUrl(last.url);
+        setCompanyContext(last.companyContext);
+        setReviewSelection(last.reviewSelection);
+        setResults(last.results);
+        setActiveResultTab(last.activeResultTab);
+        setViewMode("review");
+        setActiveSessionId(last.id);
+      }
+    } catch {
+      // Ignore malformed or missing session data
+    }
+  }, []);
+
+  // Persist sessions list to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem(SESSIONS_KEY, JSON.stringify({ v: SESSIONS_VERSION, sessions }));
+    } catch {
+      // Ignore quota or serialization errors
+    }
+  }, [sessions]);
 
   useEffect(() => {
     if (!loading) {
@@ -380,6 +438,23 @@ export default function App() {
 
       if (nextResults.terms || nextResults.dpa || nextResults.dpia || nextResults.ropa) {
         setViewMode("review");
+        const savedDomain = (() => {
+          try { return new URL(url.trim()).hostname; } catch { return url.trim(); }
+        })();
+        const savedTab: ResultTab = nextResults.terms ? "terms" : nextResults.dpa ? "dpa" : nextResults.dpia ? "dpia" : "ropa";
+        const newId = crypto.randomUUID();
+        const newSession: SavedSession = {
+          id: newId,
+          createdAt: new Date().toISOString(),
+          url: url.trim(),
+          normalizedDomain: savedDomain,
+          companyContext,
+          reviewSelection,
+          results: nextResults,
+          activeResultTab: savedTab,
+        };
+        setSessions((prev) => [newSession, ...prev]);
+        setActiveSessionId(newId);
       }
 
       if (failures.length > 0) {
@@ -439,6 +514,21 @@ export default function App() {
     setError(null);
     setResults({ terms: null, dpa: null, dpia: null, ropa: null });
     setSupportingLinkPreviews({});
+    setActiveSessionId(null);
+  };
+
+  const loadSession = (session: SavedSession) => {
+    activeRequestIdRef.current += 1;
+    setLoading(false);
+    setUrl(session.url);
+    setCompanyContext(session.companyContext);
+    setReviewSelection(session.reviewSelection);
+    setResults(session.results);
+    setActiveResultTab(session.activeResultTab);
+    setViewMode("review");
+    setError(null);
+    setSupportingLinkPreviews({});
+    setActiveSessionId(session.id);
   };
 
   const currentLoadingStage = LOADING_STAGES[loadingStageIndex];
@@ -925,10 +1015,41 @@ export default function App() {
   const showReviewScreen = viewMode === "review" && hasResults;
   const showLogoHomeAction = loading || showReviewScreen;
 
+  const hasSidebar = sessions.length > 0;
   return (
-    <main className="page-shell">
-      <div className="page-orb page-orb-left" />
-      <div className="page-orb page-orb-right" />
+    <>
+      {hasSidebar && (
+        <aside className="sessions-sidebar">
+          <div className="sidebar-header">
+            <p className="sidebar-title">Analyses</p>
+            <button type="button" className="sidebar-new-btn" onClick={returnToSetup}>
+              + New analysis
+            </button>
+          </div>
+          <div className="sidebar-sessions">
+            {sessions.map((session) => (
+              <button
+                key={session.id}
+                type="button"
+                className={session.id === activeSessionId ? "sidebar-session-btn sidebar-session-btn-active" : "sidebar-session-btn"}
+                onClick={() => loadSession(session)}
+              >
+                <span className="sidebar-session-domain">{session.normalizedDomain}</span>
+                <span className="sidebar-session-date">{formatSessionDate(session.createdAt)}</span>
+                <span className="sidebar-session-badges">
+                  {session.reviewSelection.terms && session.results.terms && <span className="sidebar-badge">T&amp;C</span>}
+                  {session.reviewSelection.dpa && session.results.dpa && <span className="sidebar-badge">DPA</span>}
+                  {session.reviewSelection.dpia && session.results.dpia && <span className="sidebar-badge">DPIA</span>}
+                  {session.reviewSelection.ropa && session.results.ropa && <span className="sidebar-badge">ROPA</span>}
+                </span>
+              </button>
+            ))}
+          </div>
+        </aside>
+      )}
+      <main className={hasSidebar ? "page-shell page-shell-with-sidebar" : "page-shell"}>
+        <div className="page-orb page-orb-left" />
+        <div className="page-orb page-orb-right" />
       <main className={showReviewScreen ? "page page-review" : "page"}>
         <header className="topbar">
           {showLogoHomeAction ? (
@@ -1209,7 +1330,6 @@ export default function App() {
                       />
                       <span>
                         <strong>ROPA Synthesis</strong>
-                        <small>Build an Article 30 register from the DPA and DPIA outputs.</small>
                       </span>
                     </label>
                   </div>
@@ -1263,5 +1383,6 @@ export default function App() {
         )}
       </main>
     </main>
+    </>
   );
 }

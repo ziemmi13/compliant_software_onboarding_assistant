@@ -11,6 +11,5 @@ dpa_agent = ChatGoogleGenerativeAI(
     temperature=0,
 )
 
-
 def build_dpa_messages(prompt: str) -> list[SystemMessage | HumanMessage]:
     return [SystemMessage(content=_INSTRUCTION), HumanMessage(content=prompt)]
