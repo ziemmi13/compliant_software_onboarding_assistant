@@ -212,6 +212,7 @@ type SavedSession = {
   createdAt: string;
   url: string;
   normalizedDomain: string;
+  name?: string;
   companyContext: string;
   reviewSelection: ReviewSelection;
   results: AnalysisResults;
@@ -243,6 +244,8 @@ export default function App() {
   const [activeResultTab, setActiveResultTab] = useState<ResultTab>("terms");
   const [sessions, setSessions] = useState<SavedSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
 
   // Load sessions from localStorage on mount and auto-restore the most recent one
   useEffect(() => {
@@ -515,6 +518,20 @@ export default function App() {
     setResults({ terms: null, dpa: null, dpia: null, ropa: null });
     setSupportingLinkPreviews({});
     setActiveSessionId(null);
+  };
+
+  const startRenaming = (session: SavedSession, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setRenamingSessionId(session.id);
+    setRenameValue(session.name ?? session.normalizedDomain);
+  };
+
+  const commitRename = (id: string) => {
+    const trimmed = renameValue.trim();
+    setSessions((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, name: trimmed || undefined } : s))
+    );
+    setRenamingSessionId(null);
   };
 
   const loadSession = (session: SavedSession) => {
@@ -1028,21 +1045,49 @@ export default function App() {
           </div>
           <div className="sidebar-sessions">
             {sessions.map((session) => (
-              <button
+              <div
                 key={session.id}
-                type="button"
-                className={session.id === activeSessionId ? "sidebar-session-btn sidebar-session-btn-active" : "sidebar-session-btn"}
-                onClick={() => loadSession(session)}
+                className={session.id === activeSessionId ? "sidebar-session-item sidebar-session-item-active" : "sidebar-session-item"}
               >
-                <span className="sidebar-session-domain">{session.normalizedDomain}</span>
-                <span className="sidebar-session-date">{formatSessionDate(session.createdAt)}</span>
-                <span className="sidebar-session-badges">
-                  {session.reviewSelection.terms && session.results.terms && <span className="sidebar-badge">T&amp;C</span>}
-                  {session.reviewSelection.dpa && session.results.dpa && <span className="sidebar-badge">DPA</span>}
-                  {session.reviewSelection.dpia && session.results.dpia && <span className="sidebar-badge">DPIA</span>}
-                  {session.reviewSelection.ropa && session.results.ropa && <span className="sidebar-badge">ROPA</span>}
-                </span>
-              </button>
+                {renamingSessionId === session.id ? (
+                  <input
+                    className="sidebar-rename-input"
+                    autoFocus
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onBlur={() => commitRename(session.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") commitRename(session.id);
+                      if (e.key === "Escape") setRenamingSessionId(null);
+                    }}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    className="sidebar-session-btn"
+                    onClick={() => loadSession(session)}
+                  >
+                    <span className="sidebar-session-domain">{session.name ?? session.normalizedDomain}</span>
+                    <span className="sidebar-session-date">{formatSessionDate(session.createdAt)}</span>
+                    <span className="sidebar-session-badges">
+                      {session.reviewSelection.terms && session.results.terms && <span className="sidebar-badge">T&amp;C</span>}
+                      {session.reviewSelection.dpa && session.results.dpa && <span className="sidebar-badge">DPA</span>}
+                      {session.reviewSelection.dpia && session.results.dpia && <span className="sidebar-badge">DPIA</span>}
+                      {session.reviewSelection.ropa && session.results.ropa && <span className="sidebar-badge">ROPA</span>}
+                    </span>
+                  </button>
+                )}
+                {renamingSessionId !== session.id && (
+                  <button
+                    type="button"
+                    className="sidebar-rename-btn"
+                    aria-label="Rename session"
+                    onClick={(e) => startRenaming(session, e)}
+                  >
+                    ✎
+                  </button>
+                )}
+              </div>
             ))}
           </div>
         </aside>
