@@ -10,7 +10,9 @@ export default function LandingPage() {
 
       <div className="landing-topbar-wrapper">
       <header className="landing-topbar landing-fade-up">
-        <img className="landing-logo" src="/comp_ai-logo.png" alt="COMPL.AI" />
+        <a href="#" className="landing-logo-link" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
+          <img className="landing-logo" src="/comp_ai-logo.png" alt="COMPL.AI" />
+        </a>
         <nav className="landing-nav">
           <a href="#demo" className="landing-nav-link">Product</a>
           <a href="#demo" className="landing-nav-link">How it works</a>

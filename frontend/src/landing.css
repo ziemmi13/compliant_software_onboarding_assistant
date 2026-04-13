@@ -72,6 +72,11 @@
   filter: brightness(10);
 }
 
+.landing-logo-link {
+  display: inline-flex;
+  text-decoration: none;
+}
+
 .landing-nav {
   display: flex;
   align-items: center;
