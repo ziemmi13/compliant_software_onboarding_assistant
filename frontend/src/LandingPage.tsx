@@ -20,21 +20,14 @@ export default function LandingPage() {
       </div>
 
       <section className="landing-hero">
-        <span className="landing-badge landing-fade-up landing-fade-up-delay-1">
-          <span className="landing-badge-dot" />
-          AI-powered compliance
-        </span>
-
         <h1 className="landing-fade-up landing-fade-up-delay-2">
           Vendor compliance in{" "}
-          <span className="landing-hero-accent">minutes</span>,{" "}
-          not weeks
+          <span className="landing-hero-accent">minutes</span>
         </h1>
 
         <p className="landing-fade-up landing-fade-up-delay-3">
-          Screen any software vendor's legal surface — T&amp;Cs, DPA, DPIA, and
-          ROPA — with a single URL. COMPL.AI reads the fine print so your legal
-          team doesn't have to.
+          Screen any software vendor's legal surface: T&amp;Cs, DPA, DPIA, and
+          ROPA — with a single URL.
         </p>
 
         <div className="landing-cta-group landing-fade-up landing-fade-up-delay-4">
