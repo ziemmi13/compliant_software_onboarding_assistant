@@ -5,8 +5,8 @@
   background: #06090f;
   color: #e4e6eb;
   font-family: "Inter", "Segoe UI", sans-serif;
-  overflow-x: hidden;
   position: relative;
+  clip-path: inset(0);
 }
 
 /* --- Gradient orbs --- */
