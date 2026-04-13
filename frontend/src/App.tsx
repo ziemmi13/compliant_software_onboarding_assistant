@@ -1113,6 +1113,7 @@ export default function App() {
         <div className="page-orb page-orb-left" />
         <div className="page-orb page-orb-right" />
       <main className={showReviewScreen ? "page page-review" : "page"}>
+        <div className="topbar-wrapper">
         <header className="topbar">
           {showLogoHomeAction ? (
             <Link to="/" className="brand-lockup brand-lockup-button" aria-label="Return to front page">
@@ -1138,6 +1139,7 @@ export default function App() {
             </button>
           </nav>
         </header>
+        </div>
         {loading ? (
           <section className="review-mode" aria-busy="true">
             <div className="review-mode-copy">

@@ -8,6 +8,7 @@ export default function LandingPage() {
       <div className="landing-orb landing-orb-2" />
       <div className="landing-orb landing-orb-3" />
 
+      <div className="landing-topbar-wrapper">
       <header className="landing-topbar landing-fade-up">
         <img className="landing-logo" src="/comp_ai-logo.png" alt="COMPL.AI" />
         <nav className="landing-nav">
@@ -16,6 +17,7 @@ export default function LandingPage() {
           <Link to="/app" className="landing-nav-cta">Open app</Link>
         </nav>
       </header>
+      </div>
 
       <section className="landing-hero">
         <span className="landing-badge landing-fade-up landing-fade-up-delay-1">
