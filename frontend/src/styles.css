@@ -1742,6 +1742,22 @@ a {
   color: rgba(236, 238, 242, 0.6);
 }
 
+.sidebar-badge-processing {
+  background: rgba(201, 184, 138, 0.18);
+  color: #d4c5a0;
+  animation: sidebar-processing-pulse 1.8s ease-in-out infinite;
+}
+
+.sidebar-badge-error {
+  background: rgba(229, 83, 75, 0.18);
+  color: #f08080;
+}
+
+@keyframes sidebar-processing-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
 .page-shell-with-sidebar {
   margin-left: 256px;
   transition: margin-left 200ms ease;

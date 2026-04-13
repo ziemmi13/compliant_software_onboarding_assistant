@@ -208,6 +208,8 @@ function formatModuleFailureMessage(kind: ResultTab, error: unknown) {
   return `${moduleLabel} analysis failed. Try again or use ${specificUrlHint}.`;
 }
 
+type SessionStatus = "processing" | "complete" | "error";
+
 type SavedSession = {
   id: string;
   createdAt: string;
@@ -218,6 +220,7 @@ type SavedSession = {
   reviewSelection: ReviewSelection;
   results: AnalysisResults;
   activeResultTab: ResultTab;
+  status?: SessionStatus;
 };
 
 function formatSessionDate(isoString: string): string {
@@ -372,6 +375,25 @@ export default function App() {
       reviewSelection.terms ? "terms" : reviewSelection.ropa ? "ropa" : reviewSelection.dpa ? "dpa" : "dpia"
     );
 
+    const savedDomain = (() => {
+      try { return new URL(url.trim()).hostname; } catch { return url.trim(); }
+    })();
+    const newId = crypto.randomUUID();
+    const pendingSession: SavedSession = {
+      id: newId,
+      createdAt: new Date().toISOString(),
+      url: url.trim(),
+      normalizedDomain: savedDomain,
+      companyContext,
+      reviewSelection,
+      results: { terms: null, dpa: null, dpia: null, ropa: null },
+      activeResultTab: reviewSelection.terms ? "terms" : reviewSelection.ropa ? "ropa" : reviewSelection.dpa ? "dpa" : "dpia",
+      status: "processing",
+    };
+    setSessions((prev) => [pendingSession, ...prev]);
+    setActiveSessionId(newId);
+    setViewMode("review");
+
     try {
       const executeOnce = async <T,>(
         kind: ResultTab,
@@ -441,26 +463,14 @@ export default function App() {
 
       setResults(nextResults);
 
-      if (nextResults.terms || nextResults.dpa || nextResults.dpia || nextResults.ropa) {
-        setViewMode("review");
-        const savedDomain = (() => {
-          try { return new URL(url.trim()).hostname; } catch { return url.trim(); }
-        })();
-        const savedTab: ResultTab = nextResults.terms ? "terms" : nextResults.dpa ? "dpa" : nextResults.dpia ? "dpia" : "ropa";
-        const newId = crypto.randomUUID();
-        const newSession: SavedSession = {
-          id: newId,
-          createdAt: new Date().toISOString(),
-          url: url.trim(),
-          normalizedDomain: savedDomain,
-          companyContext,
-          reviewSelection,
-          results: nextResults,
-          activeResultTab: savedTab,
-        };
-        setSessions((prev) => [newSession, ...prev]);
-        setActiveSessionId(newId);
-      }
+      const savedTab: ResultTab = nextResults.terms ? "terms" : nextResults.dpa ? "dpa" : nextResults.dpia ? "dpia" : "ropa";
+      setSessions((prev) =>
+        prev.map((s) =>
+          s.id === newId
+            ? { ...s, results: nextResults, activeResultTab: savedTab, status: "complete" as SessionStatus }
+            : s
+        )
+      );
 
       if (failures.length > 0) {
         setError(failures.join(" "));
@@ -471,6 +481,11 @@ export default function App() {
       }
 
       setError(err instanceof Error ? err.message : "Unknown error.");
+      setSessions((prev) =>
+        prev.map((s) =>
+          s.id === newId ? { ...s, status: "error" as SessionStatus } : s
+        )
+      );
     } finally {
       if (activeRequestIdRef.current === requestId) {
         setLoading(false);
@@ -1086,10 +1101,18 @@ export default function App() {
                     <span className="sidebar-session-domain">{session.name ?? session.normalizedDomain}</span>
                     <span className="sidebar-session-date">{formatSessionDate(session.createdAt)}</span>
                     <span className="sidebar-session-badges">
-                      {session.reviewSelection.terms && session.results.terms && <span className="sidebar-badge">T&amp;C</span>}
-                      {session.reviewSelection.dpa && session.results.dpa && <span className="sidebar-badge">DPA</span>}
-                      {session.reviewSelection.dpia && session.results.dpia && <span className="sidebar-badge">DPIA</span>}
-                      {session.reviewSelection.ropa && session.results.ropa && <span className="sidebar-badge">ROPA</span>}
+                      {session.status === "processing" ? (
+                        <span className="sidebar-badge sidebar-badge-processing">Analysing…</span>
+                      ) : session.status === "error" ? (
+                        <span className="sidebar-badge sidebar-badge-error">Failed</span>
+                      ) : (
+                        <>
+                          {session.reviewSelection.terms && session.results.terms && <span className="sidebar-badge">T&amp;C</span>}
+                          {session.reviewSelection.dpa && session.results.dpa && <span className="sidebar-badge">DPA</span>}
+                          {session.reviewSelection.dpia && session.results.dpia && <span className="sidebar-badge">DPIA</span>}
+                          {session.reviewSelection.ropa && session.results.ropa && <span className="sidebar-badge">ROPA</span>}
+                        </>
+                      )}
                     </span>
                   </button>
                 )}
