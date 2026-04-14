@@ -6,6 +6,7 @@ import { TermsPanel } from "./components/TermsPanel";
 import { DpaPanel } from "./components/DpaPanel";
 import { DpiaPanel } from "./components/DpiaPanel";
 import { RopaPanel } from "./components/RopaPanel";
+import { countBy, parseUrlHostname, parseUrlHost } from "./utils";
 
 type ReviewSelection = {
   terms: boolean;
@@ -76,45 +77,6 @@ const FINAL_STAGE_SLOW_THRESHOLD_SECONDS = 8;
 const SESSIONS_KEY = "legal_scout_sessions";
 const SESSIONS_VERSION = 1;
 
-function countHighlightsByRisk(result: AnalyzeResponse) {
-  return result.highlights.reduce(
-    (counts, item) => {
-      counts[item.risk_level] += 1;
-      return counts;
-    },
-    { high: 0, medium: 0, low: 0, unknown: 0 }
-  );
-}
-
-function countChecklistByStatus(result: DpaAnalyzeResponse) {
-  return result.checklist.reduce(
-    (counts, item) => {
-      counts[item.status] += 1;
-      return counts;
-    },
-    { missing: 0, partial: 0, unclear: 0, satisfied: 0 }
-  );
-}
-
-function countThresholdByStatus(result: DpiaAnalyzeResponse) {
-  return result.threshold_criteria.reduce(
-    (counts, item) => {
-      counts[item.status] += 1;
-      return counts;
-    },
-    { detected: 0, not_detected: 0, insufficient_info: 0 }
-  );
-}
-
-function countRopaFieldsByStatus(result: RopaAnalyzeResponse) {
-  return result.ropa_fields.reduce(
-    (counts, item) => {
-      counts[item.status] += 1;
-      return counts;
-    },
-    { populated: 0, partial: 0, placeholder: 0 }
-  );
-}
 
 function getThresholdStatusLabel(item: DpiaThresholdItem) {
   return item.status.replace(/_/g, " ");
@@ -379,9 +341,7 @@ export default function App() {
       reviewSelection.terms ? "terms" : reviewSelection.ropa ? "ropa" : reviewSelection.dpa ? "dpa" : "dpia"
     );
 
-    const savedDomain = (() => {
-      try { return new URL(url.trim()).hostname; } catch { return url.trim(); }
-    })();
+    const savedDomain = parseUrlHostname(url);
     const newId = crypto.randomUUID();
     const pendingSession: SavedSession = {
       id: newId,
@@ -579,22 +539,24 @@ export default function App() {
   const loadingDetail = isFinalLoadingStage
     ? "Prioritizing findings across contractual, compliance, and operational impact before finalizing the report."
     : currentLoadingStage.detail;
-  const targetHost = (() => {
-    try {
-      return url.trim() ? new URL(url.trim()).host : null;
-    } catch {
-      return null;
-    }
-  })();
+  const targetHost = parseUrlHost(url);
   const reviewModeTitle =
     targetHost
       ? `Reviewing ${getSelectionLabel(reviewSelection)} for ${targetHost}`
       : `Reviewing your ${getSelectionLabel(reviewSelection)} submission`;
 
-  const termsRiskCounts = results.terms ? countHighlightsByRisk(results.terms) : null;
-  const dpaChecklistCounts = results.dpa ? countChecklistByStatus(results.dpa) : null;
-  const dpiaThresholdCounts = results.dpia ? countThresholdByStatus(results.dpia) : null;
-  const ropaFieldCounts = results.ropa ? countRopaFieldsByStatus(results.ropa) : null;
+  const termsRiskCounts = results.terms
+    ? countBy(results.terms.highlights, "risk_level", { high: 0, medium: 0, low: 0, unknown: 0 })
+    : null;
+  const dpaChecklistCounts = results.dpa
+    ? countBy(results.dpa.checklist, "status", { missing: 0, partial: 0, unclear: 0, satisfied: 0 })
+    : null;
+  const dpiaThresholdCounts = results.dpia
+    ? countBy(results.dpia.threshold_criteria, "status", { detected: 0, not_detected: 0, insufficient_info: 0 })
+    : null;
+  const ropaFieldCounts = results.ropa
+    ? countBy(results.ropa.ropa_fields, "status", { populated: 0, partial: 0, placeholder: 0 })
+    : null;
 
   const getCoverageLabel = (sourceLinks: string[], blockedLinks: string[]) => {
     if (blockedLinks.length > 0) {
