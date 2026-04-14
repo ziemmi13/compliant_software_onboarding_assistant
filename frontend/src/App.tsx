@@ -6,7 +6,7 @@ import { TermsPanel } from "./components/TermsPanel";
 import { DpaPanel } from "./components/DpaPanel";
 import { DpiaPanel } from "./components/DpiaPanel";
 import { RopaPanel } from "./components/RopaPanel";
-import { countBy, parseUrlHostname, parseUrlHost, formatStatusLabel } from "./utils";
+import { countBy, parseUrlHostname, parseUrlHost, formatStatusLabel, applyReviewConstraints } from "./utils";
 import { MODULE_LABELS, ERROR_HINTS, LOADING_MESSAGES, OUTPUT_DESCRIPTIONS } from "./constants";
 
 type ReviewSelection = {
@@ -473,29 +473,7 @@ export default function App() {
   };
 
   const toggleReviewType = (reviewType: keyof ReviewSelection) => {
-    setReviewSelection((current) => {
-      if (reviewType === "ropa") {
-        const nextRopa = !current.ropa;
-        return {
-          ...current,
-          ropa: nextRopa,
-          dpa: nextRopa ? true : current.dpa,
-          dpia: nextRopa ? true : current.dpia,
-        };
-      }
-
-      if (reviewType === "dpa") {
-        const nextDpa = !current.dpa;
-        return { ...current, dpa: nextDpa, ropa: nextDpa ? current.ropa : false };
-      }
-
-      if (reviewType === "dpia") {
-        const nextDpia = !current.dpia;
-        return { ...current, dpia: nextDpia, ropa: nextDpia ? current.ropa : false };
-      }
-
-      return { ...current, [reviewType]: !current[reviewType] };
-    });
+    setReviewSelection((current) => applyReviewConstraints(current, reviewType));
     setError(null);
     setResults({ terms: null, dpa: null, dpia: null, ropa: null });
     setSupportingLinkPreviews({});
