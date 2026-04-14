@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { RopaAnalyzeResponse } from "../api";
 
 interface RopaPanelProps {
@@ -5,7 +6,7 @@ interface RopaPanelProps {
   fieldCounts: { populated: number; partial: number; placeholder: number };
 }
 
-export function RopaPanel({ results, fieldCounts }: RopaPanelProps) {
+export const RopaPanel = memo(function RopaPanel({ results, fieldCounts }: RopaPanelProps) {
   if (!results) {
     return null;
   }
@@ -97,4 +98,4 @@ export function RopaPanel({ results, fieldCounts }: RopaPanelProps) {
       </div>
     </section>
   );
-}
+});

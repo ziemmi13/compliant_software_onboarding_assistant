@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { AnalyzeResponse } from "../api";
 
 interface TermsPanelProps {
@@ -6,7 +7,7 @@ interface TermsPanelProps {
   getCoverageLabel: (sourceLinks: string[], blockedLinks: string[]) => string;
 }
 
-export function TermsPanel({ results, riskCounts, getCoverageLabel }: TermsPanelProps) {
+export const TermsPanel = memo(function TermsPanel({ results, riskCounts, getCoverageLabel }: TermsPanelProps) {
   if (!results) {
     return null;
   }
@@ -85,4 +86,4 @@ export function TermsPanel({ results, riskCounts, getCoverageLabel }: TermsPanel
       </div>
     </section>
   );
-}
+});

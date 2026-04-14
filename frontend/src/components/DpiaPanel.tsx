@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { DpiaAnalyzeResponse, LinkPreview } from "../api";
 
 interface DpiaPanelProps {
@@ -8,7 +9,7 @@ interface DpiaPanelProps {
   getThresholdStatusLabel: (item: any) => string;
 }
 
-export function DpiaPanel({
+export const DpiaPanel = memo(function DpiaPanel({
   results,
   thresholdCounts,
   supportingLinkPreviews,
@@ -162,4 +163,4 @@ export function DpiaPanel({
       </div>
     </section>
   );
-}
+});

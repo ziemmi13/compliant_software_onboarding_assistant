@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { DpaAnalyzeResponse, LinkPreview } from "../api";
 
 interface DpaPanelProps {
@@ -9,7 +10,7 @@ interface DpaPanelProps {
   getChecklistStatusLabel: (item: any) => string;
 }
 
-export function DpaPanel({
+export const DpaPanel = memo(function DpaPanel({
   results,
   checklistCounts,
   supportingLinkPreviews,
@@ -119,4 +120,4 @@ export function DpaPanel({
       </div>
     </section>
   );
-}
+});
