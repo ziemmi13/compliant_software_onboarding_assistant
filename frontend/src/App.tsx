@@ -6,15 +6,10 @@ import { TermsPanel } from "./components/TermsPanel";
 import { DpaPanel } from "./components/DpaPanel";
 import { DpiaPanel } from "./components/DpiaPanel";
 import { RopaPanel } from "./components/RopaPanel";
-import { countBy, parseUrlHostname, parseUrlHost, formatStatusLabel, applyReviewConstraints } from "./utils";
+import { NewVendorModal } from "./components/NewVendorModal";
+import { VendorDetail } from "./components/VendorDetail";
+import { countBy, parseUrlHostname, parseUrlHost, formatStatusLabel, applyReviewConstraints, ReviewSelection, computeRiskLevel } from "./utils";
 import { MODULE_LABELS, ERROR_HINTS, LOADING_MESSAGES, OUTPUT_DESCRIPTIONS } from "./constants";
-
-type ReviewSelection = {
-  terms: boolean;
-  dpa: boolean;
-  dpia: boolean;
-  ropa: boolean;
-};
 
 type AnalysisResults = {
   terms: AnalyzeResponse | null;
@@ -24,7 +19,7 @@ type AnalysisResults = {
 };
 
 type ResultTab = "terms" | "dpa" | "dpia" | "ropa";
-type ViewMode = "input" | "review";
+type ViewMode = "workspace" | "analyzing";
 
 type ModuleExecutionResult<T> = {
   analysis: T | null;
@@ -182,6 +177,7 @@ type SavedSession = {
   results: AnalysisResults;
   activeResultTab: ResultTab;
   status?: SessionStatus;
+  decision?: "approved" | "conditional" | "rejected";
 };
 
 function formatSessionDate(isoString: string): string {
@@ -214,7 +210,9 @@ export default function App() {
   const [url, setUrl] = useState("");
   const [companyContext, setCompanyContext] = useState("");
   const [reviewSelection, setReviewSelection] = useState<ReviewSelection>({ terms: true, dpa: true, dpia: false, ropa: false });
-  const [viewMode, setViewMode] = useState<ViewMode>("input");
+  const [viewMode, setViewMode] = useState<ViewMode>("workspace");
+  const [showNewVendorModal, setShowNewVendorModal] = useState(false);
+  const [showFullReport, setShowFullReport] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingStageIndex, setLoadingStageIndex] = useState(0);
   const [loadingElapsedSeconds, setLoadingElapsedSeconds] = useState(0);
@@ -238,12 +236,6 @@ export default function App() {
       setSessions(data.sessions);
       if (data.sessions.length > 0) {
         const last = data.sessions[0];
-        setUrl(last.url);
-        setCompanyContext(last.companyContext);
-        setReviewSelection(last.reviewSelection);
-        setResults(last.results);
-        setActiveResultTab(last.activeResultTab);
-        setViewMode("review");
         setActiveSessionId(last.id);
       }
     } catch {
@@ -366,7 +358,8 @@ export default function App() {
     };
     setSessions((prev) => [pendingSession, ...prev]);
     setActiveSessionId(newId);
-    setViewMode("review");
+    setViewMode("analyzing");
+    setShowNewVendorModal(false);
 
     try {
       const executeOnce = async <T,>(
@@ -445,6 +438,7 @@ export default function App() {
       }
 
       setResults(nextResults);
+      setViewMode("workspace");
 
       if (failures.length > 0) {
         setError(failures.join(" "));
@@ -461,6 +455,7 @@ export default function App() {
       }
 
       setError(err instanceof Error ? err.message : "Unknown error.");
+      setViewMode("workspace");
     } finally {
       if (activeRequestIdRef.current === requestId) {
         setLoading(false);
@@ -477,17 +472,12 @@ export default function App() {
     setError(null);
     setResults({ terms: null, dpa: null, dpia: null, ropa: null });
     setSupportingLinkPreviews({});
-    setViewMode("input");
   };
 
   const returnToSetup = () => {
     activeRequestIdRef.current += 1;
-    setLoading(false);
-    setViewMode("input");
-    setError(null);
-    setResults({ terms: null, dpa: null, dpia: null, ropa: null });
-    setSupportingLinkPreviews({});
     setActiveSessionId(null);
+    setShowFullReport(false);
   };
 
   const startRenaming = (session: SavedSession, e: React.MouseEvent) => {
@@ -505,17 +495,26 @@ export default function App() {
   };
 
   const loadSession = (session: SavedSession) => {
-    activeRequestIdRef.current += 1;
-    setLoading(false);
+    setActiveSessionId(session.id);
+    setShowFullReport(false);
+  };
+
+  const handleDecisionChange = (decision: "approved" | "conditional" | "rejected") => {
+    if (!activeSessionId) return;
+    setSessions((prev) =>
+      prev.map((s) => (s.id === activeSessionId ? { ...s, decision } : s))
+    );
+  };
+
+  const handleReanalyze = () => {
+    if (!activeSessionId) return;
+    const session = sessions.find((s) => s.id === activeSessionId);
+    if (!session) return;
     setUrl(session.url);
     setCompanyContext(session.companyContext);
     setReviewSelection(session.reviewSelection);
-    setResults(session.results);
-    setActiveResultTab(session.activeResultTab);
-    setViewMode("review");
     setError(null);
-    setSupportingLinkPreviews({});
-    setActiveSessionId(session.id);
+    setShowNewVendorModal(true);
   };
 
   const currentLoadingStage = LOADING_STAGES[loadingStageIndex];
@@ -554,16 +553,7 @@ export default function App() {
     return sourceLinks.length > 0 ? "Good" : "Limited";
   };
 
-  const hasResults = Boolean(results.terms || results.dpa || results.dpia || results.ropa);
-  const availableTabs: ResultTab[] = [results.terms ? "terms" : null, results.dpa ? "dpa" : null, results.dpia ? "dpia" : null, results.ropa ? "ropa" : null].filter(Boolean) as ResultTab[];
-  const visibleResultTab = availableTabs.includes(activeResultTab) ? activeResultTab : availableTabs[0] ?? "terms";
-
-
-
-
-
-  const showReviewScreen = viewMode === "review" && hasResults;
-  const showLogoHomeAction = loading || showReviewScreen;
+  const showLogoHomeAction = viewMode === 'analyzing';
 
   return (
     <>
@@ -581,8 +571,8 @@ export default function App() {
               </button>
             </div>
             {!sidebarCollapsed && (
-              <button type="button" className="sidebar-new-btn" onClick={returnToSetup}>
-                + New session
+              <button type="button" className="sidebar-new-btn" onClick={() => setShowNewVendorModal(true)}>
+                + New Vendor
               </button>
             )}
           </div>
@@ -614,8 +604,23 @@ export default function App() {
                     className="sidebar-session-btn"
                     onClick={() => loadSession(session)}
                   >
-                    <span className="sidebar-session-domain">{session.name ?? session.normalizedDomain}</span>
-                    <span className="sidebar-session-date">{formatSessionDate(session.createdAt)}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flex: 1 }}>
+                      {session.status === "complete" && (
+                        <div
+                          className={`sidebar-risk-dot ${computeRiskLevel(session.results)}`}
+                          title={`Risk: ${computeRiskLevel(session.results) || "unknown"}`}
+                        />
+                      )}
+                      <span className="sidebar-session-domain">{session.name ?? session.normalizedDomain}</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                      <span className="sidebar-session-date">{formatSessionDate(session.createdAt)}</span>
+                      {session.decision && (
+                        <span className={`sidebar-decision-badge ${session.decision}`}>
+                          {session.decision}
+                        </span>
+                      )}
+                    </div>
                     <span className="sidebar-session-badges">
                       {session.status === "processing" ? (
                         <span className="sidebar-badge sidebar-badge-processing">Analysing…</span>
@@ -651,7 +656,7 @@ export default function App() {
       <main className={sidebarCollapsed ? "page-shell page-shell-with-sidebar-collapsed" : "page-shell page-shell-with-sidebar"}>
         <div className="page-orb page-orb-left" />
         <div className="page-orb page-orb-right" />
-      <main className={showReviewScreen ? "page page-review" : "page"}>
+      <main className="page">
         <div className="topbar-wrapper">
         <header className="topbar">
           {showLogoHomeAction ? (
@@ -679,7 +684,26 @@ export default function App() {
           </nav>
         </header>
         </div>
-        {loading ? (
+        {/* NewVendorModal - always rendered, conditionally visible */}
+        {showNewVendorModal && (
+          <NewVendorModal
+            url={url}
+            setUrl={setUrl}
+            companyContext={companyContext}
+            setCompanyContext={setCompanyContext}
+            reviewSelection={reviewSelection}
+            toggleReviewType={toggleReviewType}
+            applyPreset={applyPreset}
+            onSubmit={onSubmit}
+            onClose={() => setShowNewVendorModal(false)}
+            error={error}
+            loading={loading}
+            contextPresets={CONTEXT_PRESETS}
+          />
+        )}
+
+        {/* Loading screen */}
+        {viewMode === "analyzing" && (
           <section className="review-mode" aria-busy="true">
             <div className="review-mode-copy">
               <div className="review-mode-meta">
@@ -780,216 +804,43 @@ export default function App() {
               </ol>
             </section>
           </section>
-        ) : showReviewScreen ? (
-          <section className="review-shell">
-            <div className="review-shell-header">
-              <div className="review-shell-copy">
-                <p className="section-kicker">Review ready</p>
-                <h1 className="review-shell-title">{targetHost ?? "Analysis report"}</h1>
-              {availableTabs.length > 1 && (
-                <div className="results-tablist results-tablist-header" role="tablist" aria-label="Result sections">
-                  {results.terms && (
-                    <button
-                      type="button"
-                      role="tab"
-                      aria-selected={visibleResultTab === "terms"}
-                      aria-label="Show T and C results"
-                      className={visibleResultTab === "terms" ? "results-tab results-tab-active" : "results-tab"}
-                      onClick={() => setActiveResultTab("terms")}
-                    >
-                      <span>T&amp;C</span>
-                    </button>
-                  )}
-                  {results.dpa && (
-                    <button
-                      type="button"
-                      role="tab"
-                      aria-selected={visibleResultTab === "dpa"}
-                      aria-label="Show D P A results"
-                      className={visibleResultTab === "dpa" ? "results-tab results-tab-active" : "results-tab"}
-                      onClick={() => setActiveResultTab("dpa")}
-                    >
-                      <span>DPA</span>
-                    </button>
-                  )}
-                  {results.dpia && (
-                    <button
-                      type="button"
-                      role="tab"
-                      aria-selected={visibleResultTab === "dpia"}
-                      aria-label="Show D P I A results"
-                      className={visibleResultTab === "dpia" ? "results-tab results-tab-active" : "results-tab"}
-                      onClick={() => setActiveResultTab("dpia")}
-                    >
-                      <span>DPIA</span>
-                    </button>
-                  )}
-                  {results.ropa && (
-                    <button
-                      type="button"
-                      role="tab"
-                      aria-selected={visibleResultTab === "ropa"}
-                      aria-label="Show R O P A results"
-                      className={visibleResultTab === "ropa" ? "results-tab results-tab-active" : "results-tab"}
-                      onClick={() => setActiveResultTab("ropa")}
-                    >
-                      <span>ROPA</span>
-                    </button>
-                  )}
-                </div>
-              )}
-              </div>
-              <button type="button" className="review-back-button" onClick={returnToSetup}>
-                Back to setup
-              </button>
-            </div>
+        )}
 
-            {error ? <p className="error review-error">{error}</p> : null}
-
-            <section className="results results-stack">
-              {visibleResultTab === "terms" && results.terms && (
-                <TermsPanel
-                  results={results.terms}
-                  riskCounts={termsRiskCounts!}
-                  getCoverageLabel={getCoverageLabel}
-                />
-              )}
-              {visibleResultTab === "dpa" && results.dpa && (
-                <DpaPanel
-                  results={results.dpa}
-                  checklistCounts={dpaChecklistCounts!}
-                  supportingLinkPreviews={supportingLinkPreviews}
-                  getCoverageLabel={getCoverageLabel}
-                  getSupportingLinkHref={getSupportingLinkHref}
-                  getChecklistStatusLabel={getChecklistStatusLabel}
-                />
-              )}
-              {visibleResultTab === "dpia" && results.dpia && (
-                <DpiaPanel
-                  results={results.dpia}
-                  thresholdCounts={dpiaThresholdCounts!}
-                  supportingLinkPreviews={supportingLinkPreviews}
-                  getSupportingLinkHref={getSupportingLinkHref}
-                  getThresholdStatusLabel={getThresholdStatusLabel}
-                />
-              )}
-              {visibleResultTab === "ropa" && results.ropa && (
-                <RopaPanel
-                  results={results.ropa}
-                  fieldCounts={ropaFieldCounts!}
-                />
-              )}
-            </section>
-          </section>
-        ) : (
+        {viewMode === "workspace" && (
           <>
-            <header className="hero">
-              <div className="hero-copy">
-                <h1>Compliant Software Onboarding</h1>
-                <p className="hero-body">
-                  Screen any software in minutes instead of days.
-                </p>
+            {/* Vendor Detail or Empty State */}
+            {activeSessionId && sessions.find((s) => s.id === activeSessionId) ? (
+              <VendorDetail
+                session={sessions.find((s) => s.id === activeSessionId)!}
+                showFullReport={showFullReport}
+                setShowFullReport={setShowFullReport}
+                activeResultTab={activeResultTab}
+                setActiveResultTab={setActiveResultTab}
+                onDecisionChange={handleDecisionChange}
+                onReanalyze={handleReanalyze}
+                supportingLinkPreviews={supportingLinkPreviews}
+              />
+            ) : (
+              <div className="vendor-empty-state">
+                <h2>Welcome to Comp AI</h2>
+                <p>Select a vendor from the list or create a new analysis to get started.</p>
+                <button
+                  className="btn-primary"
+                  onClick={() => setShowNewVendorModal(true)}
+                  style={{
+                    padding: "0.75rem 1.5rem",
+                    borderRadius: "12px",
+                    background: "linear-gradient(135deg, var(--accent) 0%, #a89868 100%)",
+                    color: "var(--cream)",
+                    border: "none",
+                    cursor: "pointer",
+                    fontWeight: "600",
+                  }}
+                >
+                  + New Vendor
+                </button>
               </div>
-            </header>
-
-            <section className="workspace-grid">
-              <section className="panel intake-panel">
-                <div className="panel-header">
-                  <div>
-                    <p className="section-kicker">Start here</p>
-                  </div>
-                </div>
-
-                <fieldset className="review-type-group">
-                  <legend>Select reviews</legend>
-                  <div className="review-type-switch" role="group" aria-label="Review type">
-                    <label className={reviewSelection.terms ? "review-type-card review-type-card-selected" : "review-type-card"}>
-                      <input
-                        type="checkbox"
-                        checked={reviewSelection.terms}
-                        onChange={() => toggleReviewType("terms")}
-                      />
-                      <span>
-                        <strong>T&amp;C Review</strong>
-                      </span>
-                    </label>
-                    <label className={reviewSelection.dpa ? "review-type-card review-type-card-selected" : "review-type-card"}>
-                      <input
-                        type="checkbox"
-                        checked={reviewSelection.dpa}
-                        onChange={() => toggleReviewType("dpa")}
-                      />
-                      <span>
-                        <strong>DPA Review</strong>
-                      </span>
-                    </label>
-                    <label className={reviewSelection.dpia ? "review-type-card review-type-card-selected" : "review-type-card"}>
-                      <input
-                        type="checkbox"
-                        checked={reviewSelection.dpia}
-                        onChange={() => toggleReviewType("dpia")}
-                      />
-                      <span>
-                        <strong>DPIA Screening</strong>
-                      </span>
-                    </label>
-                    <label className={reviewSelection.ropa ? "review-type-card review-type-card-selected" : "review-type-card"}>
-                      <input
-                        type="checkbox"
-                        checked={reviewSelection.ropa}
-                        onChange={() => toggleReviewType("ropa")}
-                      />
-                      <span>
-                        <strong>ROPA Synthesis</strong>
-                      </span>
-                    </label>
-                  </div>
-                </fieldset>
-
-                <form onSubmit={onSubmit} className="form">
-                  <label htmlFor="url">Insert software URL</label>
-                  <div className="row">
-                    <input
-                      id="url"
-                      type="url"
-                      placeholder="https://example.com"
-                      value={url}
-                      onChange={(e) => setUrl(e.target.value)}
-                    />
-                    <button type="submit" disabled={loading}>
-                      {loading ? "Analyzing..." : "Analyze"}
-                    </button>
-                  </div>
-
-                  <label htmlFor="company-context">Company context</label>
-                  <textarea
-                    id="company-context"
-                    className="context-input"
-                    placeholder="Optional. Add your business model, customer profile, or legal concerns so the review is prioritized correctly."
-                    value={companyContext}
-                    onChange={(e) => setCompanyContext(e.target.value)}
-                    rows={3}
-                  />
-                  <div className="preset-group">
-                    <p className="preset-label">Quick context presets</p>
-                    <div className="preset-list">
-                      {CONTEXT_PRESETS.map((preset) => (
-                        <button
-                          key={preset.label}
-                          type="button"
-                          className="preset-chip"
-                          onClick={() => applyPreset(preset.value)}
-                        >
-                          {preset.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </form>
-
-                {error && <p className="error">{error}</p>}
-              </section>
-            </section>
+            )}
           </>
         )}
       </main>

@@ -1,3 +1,10 @@
+export type ReviewSelection = {
+  terms: boolean;
+  dpa: boolean;
+  dpia: boolean;
+  ropa: boolean;
+};
+
 /**
  * Generic utility to count items by a status/key property
  * @param items Array of items to count
@@ -97,4 +104,61 @@ export function applyReviewConstraints(
   }
 
   return next;
+}
+
+/**
+ * Compute overall risk level from analysis results
+ * Aggregates risk across all modules and returns high/medium/low
+ * @param results Analysis results from all modules
+ * @returns Risk level or null if no results
+ */
+export function computeRiskLevel(results: {
+  terms: { highlights: Array<{ risk_level: string }> } | null;
+  dpa: { checklist: Array<{ status: string }> } | null;
+  dpia: { threshold_criteria: Array<{ status: string }> } | null;
+  ropa: unknown;
+} | null): "high" | "medium" | "low" | null {
+  if (!results) return null;
+
+  const highlightLevels: string[] = results.terms?.highlights.map((h) => h.risk_level) ?? [];
+  const dpaCounts = { missing: 0, partial: 0, unclear: 0, satisfied: 0 };
+  const dpiaCounts = { detected: 0, not_detected: 0, insufficient_info: 0 };
+
+  if (results.dpa?.checklist) {
+    results.dpa.checklist.forEach((item) => {
+      if (item.status === "missing") dpaCounts.missing++;
+      else if (item.status === "partial") dpaCounts.partial++;
+      else if (item.status === "unclear") dpaCounts.unclear++;
+      else if (item.status === "satisfied") dpaCounts.satisfied++;
+    });
+  }
+
+  if (results.dpia?.threshold_criteria) {
+    results.dpia.threshold_criteria.forEach((item) => {
+      if (item.status === "detected") dpiaCounts.detected++;
+      else if (item.status === "not_detected") dpiaCounts.not_detected++;
+      else if (item.status === "insufficient_info") dpiaCounts.insufficient_info++;
+    });
+  }
+
+  // Check for high-risk indicators
+  const hasHighRiskTerms = highlightLevels.includes("high");
+  const hasHighMissingDpa = dpaCounts.missing > 0;
+  const hasHighDetectedDpia = dpiaCounts.detected > 0;
+
+  if (hasHighRiskTerms || hasHighMissingDpa || hasHighDetectedDpia) {
+    return "high";
+  }
+
+  // Check for medium-risk indicators
+  const hasMediumRiskTerms = highlightLevels.includes("medium");
+  const hasPartialDpa = dpaCounts.partial > 0 || dpaCounts.unclear > 0;
+  const hasInsufficientDpia = dpiaCounts.insufficient_info > 0;
+
+  if (hasMediumRiskTerms || hasPartialDpa || hasInsufficientDpia) {
+    return "medium";
+  }
+
+  // Otherwise low risk
+  return "low";
 }
