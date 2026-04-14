@@ -2,6 +2,10 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { AnalyzeResponse, ApiRequestError, DpaAnalyzeResponse, DpaChecklistItem, DpiaAnalyzeResponse, DpiaThresholdItem, LinkPreview, RopaAnalyzeResponse, RopaField, analyzeDpaUrl, analyzeDpiaUrl, analyzeRopaUrl, analyzeUrl, fetchLinkPreviews } from "./api";
+import { TermsPanel } from "./components/TermsPanel";
+import { DpaPanel } from "./components/DpaPanel";
+import { DpiaPanel } from "./components/DpiaPanel";
+import { RopaPanel } from "./components/RopaPanel";
 
 type ReviewSelection = {
   terms: boolean;
@@ -625,427 +629,9 @@ export default function App() {
     }
   }, [results.dpa, results.dpia, results.ropa, results.terms]);
 
-  const renderRopaPanel = () => {
-    if (!results.ropa) {
-      return null;
-    }
 
-    return (
-      <section className="result-block">
-        <section className="results-topbar simple-topbar">
-          <div className="topbar-metrics compact-metrics">
-            <span className="topbar-pill topbar-pill-satisfied">Populated {ropaFieldCounts?.populated ?? 0}</span>
-            <span className="topbar-pill topbar-pill-partial">Partial {ropaFieldCounts?.partial ?? 0}</span>
-            <span className="topbar-pill topbar-pill-coverage">Placeholders {ropaFieldCounts?.placeholder ?? 0}</span>
-            <span className="topbar-pill topbar-pill-sources">Completeness {results.ropa.completeness_score}%</span>
-          </div>
-        </section>
 
-        <div className="results-primary">
-          <article className="card summary-card narrative-card">
-            <div className="card-header">
-              <h2>ROPA Summary</h2>
-            </div>
-            <p className="summary-copy">{results.ropa.summary}</p>
-            <div className="ropa-summary-meta">
-              <span className="topbar-pill topbar-pill-coverage">Vendor {results.ropa.vendor_name}</span>
-              <span className="topbar-pill topbar-pill-sources">Article 30 record</span>
-            </div>
-          </article>
 
-          <article className="card highlights-card narrative-card">
-            <div className="card-header">
-              <h2>Record of Processing Activities</h2>
-            </div>
-            <div className="ropa-field-list">
-              {results.ropa.ropa_fields.map((field: RopaField) => (
-                <article key={field.field_key} className={`ropa-field-card ropa-field-card-${field.status}`}>
-                  <div className="ropa-field-header">
-                    <div>
-                      <h3>{field.field_title}</h3>
-                      <p>{field.article_ref}</p>
-                    </div>
-                    <span className={`ropa-field-status ropa-field-status-${field.status}`}>{field.status}</span>
-                  </div>
-
-                  {field.entries.length === 0 ? (
-                    <p className="muted-copy">No structured entries were returned for this field.</p>
-                  ) : (
-                    <ul className="ropa-entry-list">
-                      {field.entries.map((entry, index) => (
-                        <li key={`${field.field_key}-${index}`} className="ropa-entry-card">
-                          <strong>{entry.title}</strong>
-                          <p>{entry.detail}</p>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-
-                  {field.source_notes.length > 0 && (
-                    <div className="ropa-source-notes">
-                      <h4>Source notes</h4>
-                      <ul>
-                        {field.source_notes.map((note, index) => (
-                          <li key={`${field.field_key}-note-${index}`}>{note}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </article>
-              ))}
-            </div>
-          </article>
-
-          <article className="card evidence-card narrative-card">
-            <div className="card-header">
-              <h2>Completeness</h2>
-            </div>
-            <div className="ropa-completeness-bar" aria-hidden="true">
-              <div className="ropa-completeness-fill" style={{ width: `${results.ropa.completeness_score}%` }} />
-            </div>
-            <p className="summary-copy ropa-completeness-copy">
-              {results.ropa.completeness_score}% of the Article 30 record is populated from the available DPA and DPIA material.
-            </p>
-            {results.ropa.confidence_notes.length > 0 && (
-              <ul className="source-list ropa-confidence-list">
-                {results.ropa.confidence_notes.map((note, index) => (
-                  <li key={`confidence-${index}`}>{note}</li>
-                ))}
-              </ul>
-            )}
-          </article>
-        </div>
-      </section>
-    );
-  };
-
-  const renderTermsPanel = () => {
-    if (!results.terms) {
-      return null;
-    }
-
-    return (
-      <section className="result-block">
-        <section className="results-topbar simple-topbar">
-          <div className="topbar-metrics compact-metrics">
-            <span className="topbar-pill topbar-pill-high">High {termsRiskCounts?.high ?? 0}</span>
-            <span className="topbar-pill topbar-pill-medium">Medium {termsRiskCounts?.medium ?? 0}</span>
-            <span className="topbar-pill topbar-pill-low">Low {termsRiskCounts?.low ?? 0}</span>
-            <span className="topbar-pill topbar-pill-coverage">Coverage {getCoverageLabel(results.terms.source_links, results.terms.blocked_links)}</span>
-            <span className="topbar-pill topbar-pill-sources">Sources {results.terms.source_links.length}</span>
-          </div>
-        </section>
-
-        <div className="results-primary">
-          <article className="card summary-card narrative-card">
-            <div className="card-header">
-              <h2>T&amp;C Summary</h2>
-            </div>
-            <p className="summary-copy">{results.terms.summary}</p>
-          </article>
-
-          <article className="card highlights-card narrative-card">
-            <div className="card-header">
-              <h2>Key Highlights</h2>
-            </div>
-            {results.terms.highlights.length === 0 ? (
-              <p>No highlights were extracted.</p>
-            ) : (
-              <ul className="highlights editorial-highlights">
-                {results.terms.highlights.map((item, index) => (
-                  <li key={`${item.title}-${index}`} className={`highlight-card highlight-card-${item.risk_level}`}>
-                    <div className="title-row">
-                      <strong>{item.title}</strong>
-                      <span className={`risk risk-${item.risk_level}`}>{item.risk_level}</span>
-                    </div>
-                    <p>{item.rationale}</p>
-                    {item.source_url && (
-                      <p className="highlight-source">
-                        Source:{" "}
-                        <a href={item.source_url} target="_blank" rel="noreferrer">
-                          {item.source_url}
-                        </a>
-                      </p>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </article>
-
-          <article className="card evidence-card narrative-card">
-            <div className="card-header">
-              <h2>Evidence &amp; Coverage</h2>
-            </div>
-
-            <div className="evidence-section">
-              <h3>Source links</h3>
-              {results.terms.source_links.length === 0 ? (
-                <p className="muted-copy">No source links were confirmed.</p>
-              ) : (
-                <ul className="source-list">
-                  {results.terms.source_links.map((link) => (
-                    <li key={link}>
-                      <a href={link} target="_blank" rel="noreferrer">
-                        {link}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </article>
-        </div>
-      </section>
-    );
-  };
-
-  const renderDpaPanel = () => {
-    if (!results.dpa) {
-      return null;
-    }
-
-    return (
-      <section className="result-block">
-        <section className="results-topbar simple-topbar">
-          <div className="topbar-metrics compact-metrics">
-            <span className="topbar-pill topbar-pill-high">Missing {dpaChecklistCounts?.missing ?? 0}</span>
-            <span className="topbar-pill topbar-pill-partial">Partial {dpaChecklistCounts?.partial ?? 0}</span>
-            <span className="topbar-pill topbar-pill-satisfied">Satisfied {dpaChecklistCounts?.satisfied ?? 0}</span>
-            <span className="topbar-pill topbar-pill-coverage">Coverage {getCoverageLabel(results.dpa.source_links, results.dpa.blocked_links)}</span>
-            <span className="topbar-pill topbar-pill-sources">Sources {results.dpa.source_links.length}</span>
-            {results.dpa.supporting_links.length > 0 && <span className="topbar-pill topbar-pill-sources">Support {results.dpa.supporting_links.length}</span>}
-          </div>
-        </section>
-
-        <div className="results-primary">
-          <article className="card summary-card narrative-card">
-            <div className="card-header">
-              <h2>DPA Summary</h2>
-            </div>
-            <p className="summary-copy">{results.dpa.summary}</p>
-          </article>
-
-          <article className="card highlights-card narrative-card">
-            <div className="card-header">
-              <h2>Article 28 Checklist</h2>
-            </div>
-            {results.dpa.checklist.length === 0 ? (
-              <p>No checklist items were extracted.</p>
-            ) : (
-              <ul className="highlights editorial-highlights dpa-checklist">
-                {results.dpa.checklist.map((item) => (
-                  <li key={item.requirement_key} className={`highlight-card dpa-checklist-item dpa-checklist-item-${item.status}`}>
-                    <div className="title-row">
-                      <strong>{item.requirement_title}</strong>
-                      <span className={`check-status check-status-${item.status}`}>{getChecklistStatusLabel(item)}</span>
-                    </div>
-                    <p>{item.rationale}</p>
-                    {item.source_url && (
-                      <p className="highlight-source">
-                        Source:{" "}
-                        <a href={item.source_url} target="_blank" rel="noreferrer">
-                          {item.source_url}
-                        </a>
-                      </p>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </article>
-
-          <article className="card evidence-card narrative-card">
-            <div className="card-header">
-              <h2>Evidence &amp; Coverage</h2>
-            </div>
-
-            <div className="evidence-section">
-              <h3>Source links</h3>
-              {results.dpa.source_links.length === 0 ? (
-                <p className="muted-copy">
-                  {results.dpa.supporting_links.length > 0
-                    ? "No confirmed DPA page was found."
-                    : "No source links were confirmed."}
-                </p>
-              ) : (
-                <ul className="source-list evidence-link-list">
-                  {results.dpa.source_links.map((link) => (
-                    <li key={link}>
-                      <a href={link} target="_blank" rel="noreferrer">
-                        {link}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-
-            {results.dpa.supporting_links.length > 0 && (
-              <div className="evidence-section">
-                <h3>Supporting links</h3>
-                <ul className="source-list evidence-link-list">
-                  {results.dpa.supporting_links.map((link, index) => {
-                    const resolvedHref = getSupportingLinkHref(link, supportingLinkPreviews[link]);
-
-                    return (
-                      <li key={link}>
-                        <a href={resolvedHref} target="_blank" rel="noreferrer" title={resolvedHref}>
-                          {resolvedHref}
-                        </a>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            )}
-          </article>
-        </div>
-      </section>
-    );
-  };
-
-  const renderDpiaPanel = () => {
-    if (!results.dpia) {
-      return null;
-    }
-
-    return (
-      <section className="result-block">
-        <section className="results-topbar simple-topbar">
-          <div className="topbar-metrics compact-metrics">
-            <span className="topbar-pill topbar-pill-high">Detected {dpiaThresholdCounts?.detected ?? 0}</span>
-            <span className="topbar-pill topbar-pill-low">Not detected {dpiaThresholdCounts?.not_detected ?? 0}</span>
-            <span className="topbar-pill topbar-pill-medium">Insufficient {dpiaThresholdCounts?.insufficient_info ?? 0}</span>
-            <span className={`topbar-pill ${results.dpia.dpia_required ? "topbar-pill-high" : "topbar-pill-satisfied"}`}>
-              {results.dpia.dpia_required ? "DPIA Required" : "DPIA Not Required"}
-            </span>
-            <span className="topbar-pill topbar-pill-coverage">Score {results.dpia.threshold_score}/9</span>
-          </div>
-        </section>
-
-        <div className="results-primary">
-          <article className="card summary-card narrative-card">
-            <div className="card-header">
-              <h2>DPIA Screening Summary</h2>
-            </div>
-            <p className="summary-copy">{results.dpia.summary}</p>
-          </article>
-
-          <article className="card highlights-card narrative-card">
-            <div className="card-header">
-              <h2>WP29 Threshold Criteria ({results.dpia.threshold_score}/9 detected)</h2>
-            </div>
-            {results.dpia.threshold_criteria.length === 0 ? (
-              <p>No threshold criteria were evaluated.</p>
-            ) : (
-              <ul className="highlights editorial-highlights dpa-checklist">
-                {results.dpia.threshold_criteria.map((item) => (
-                  <li key={item.criterion_key} className={`highlight-card dpa-checklist-item dpa-checklist-item-${item.status === "detected" ? "missing" : item.status === "not_detected" ? "satisfied" : "unclear"}`}>
-                    <div className="title-row">
-                      <strong>{item.criterion_name}</strong>
-                      <span className={`check-status check-status-${item.status === "detected" ? "missing" : item.status === "not_detected" ? "satisfied" : "unclear"}`}>
-                        {getThresholdStatusLabel(item)}
-                      </span>
-                    </div>
-                    <p>{item.evidence}</p>
-                    {item.source_url && (
-                      <p className="highlight-source">
-                        Source:{" "}
-                        <a href={item.source_url} target="_blank" rel="noreferrer">
-                          {item.source_url}
-                        </a>
-                      </p>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </article>
-
-          {results.dpia.dpia_sections.length > 0 && (
-            <article className="card highlights-card narrative-card">
-              <div className="card-header">
-                <h2>Preliminary DPIA</h2>
-              </div>
-              <ul className="highlights editorial-highlights">
-                {[...results.dpia.dpia_sections].sort((a, b) => {
-                  const order: Record<string, number> = { high: 0, medium: 1, low: 2 };
-                  return (order[a.risk_level ?? ""] ?? 3) - (order[b.risk_level ?? ""] ?? 3);
-                }).map((section) => (
-                  <li key={section.section_key} className={`highlight-card highlight-card-${section.risk_level ?? "unknown"}`}>
-                    <div className="title-row">
-                      <strong>{section.section_title}</strong>
-                      {section.risk_level && (
-                        <span className={`risk risk-${section.risk_level}`}>{section.risk_level}</span>
-                      )}
-                    </div>
-                    <ul className="dpia-findings">
-                      {section.findings.map((f, i) => (
-                        <li key={i} className="dpia-finding">
-                          <strong>{f.title}:</strong> {f.detail}
-                        </li>
-                      ))}
-                    </ul>
-                    {section.source_url && (
-                      <p className="highlight-source">
-                        Source:{" "}
-                        <a href={section.source_url} target="_blank" rel="noreferrer">
-                          {section.source_url}
-                        </a>
-                      </p>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </article>
-          )}
-
-          <article className="card evidence-card narrative-card">
-            <div className="card-header">
-              <h2>Evidence &amp; Coverage</h2>
-            </div>
-
-            <div className="evidence-section">
-              <h3>Source links</h3>
-              {results.dpia.source_links.length === 0 ? (
-                <p className="muted-copy">No source links were confirmed.</p>
-              ) : (
-                <ul className="source-list evidence-link-list">
-                  {results.dpia.source_links.map((link) => (
-                    <li key={link}>
-                      <a href={link} target="_blank" rel="noreferrer">
-                        {link}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-
-            {results.dpia.supporting_links.length > 0 && (
-              <div className="evidence-section">
-                <h3>Supporting links</h3>
-                <ul className="source-list evidence-link-list">
-                  {results.dpia.supporting_links.map((link) => {
-                    const resolvedHref = getSupportingLinkHref(link, supportingLinkPreviews[link]);
-
-                    return (
-                      <li key={link}>
-                        <a href={resolvedHref} target="_blank" rel="noreferrer" title={resolvedHref}>
-                          {resolvedHref}
-                        </a>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            )}
-          </article>
-        </div>
-      </section>
-    );
-  };
 
   const showReviewScreen = viewMode === "review" && hasResults;
   const showLogoHomeAction = loading || showReviewScreen;
@@ -1348,14 +934,38 @@ export default function App() {
             {error ? <p className="error review-error">{error}</p> : null}
 
             <section className="results results-stack">
-
-              {visibleResultTab === "terms"
-                ? renderTermsPanel()
-                : visibleResultTab === "dpa"
-                  ? renderDpaPanel()
-                  : visibleResultTab === "dpia"
-                    ? renderDpiaPanel()
-                    : renderRopaPanel()}
+              {visibleResultTab === "terms" && results.terms && (
+                <TermsPanel
+                  results={results.terms}
+                  riskCounts={termsRiskCounts!}
+                  getCoverageLabel={getCoverageLabel}
+                />
+              )}
+              {visibleResultTab === "dpa" && results.dpa && (
+                <DpaPanel
+                  results={results.dpa}
+                  checklistCounts={dpaChecklistCounts!}
+                  supportingLinkPreviews={supportingLinkPreviews}
+                  getCoverageLabel={getCoverageLabel}
+                  getSupportingLinkHref={getSupportingLinkHref}
+                  getChecklistStatusLabel={getChecklistStatusLabel}
+                />
+              )}
+              {visibleResultTab === "dpia" && results.dpia && (
+                <DpiaPanel
+                  results={results.dpia}
+                  thresholdCounts={dpiaThresholdCounts!}
+                  supportingLinkPreviews={supportingLinkPreviews}
+                  getSupportingLinkHref={getSupportingLinkHref}
+                  getThresholdStatusLabel={getThresholdStatusLabel}
+                />
+              )}
+              {visibleResultTab === "ropa" && results.ropa && (
+                <RopaPanel
+                  results={results.ropa}
+                  fieldCounts={ropaFieldCounts!}
+                />
+              )}
             </section>
           </section>
         ) : (
