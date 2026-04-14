@@ -20,6 +20,15 @@ export function countBy<T, K extends Record<string, number>>(
 }
 
 /**
+ * Format status/key labels by replacing underscores with spaces
+ * @param status Status string with underscores
+ * @returns Formatted label with spaces
+ */
+export function formatStatusLabel(status: string): string {
+  return status.replace(/_/g, " ");
+}
+
+/**
  * Parse a URL and get the hostname
  * @param url URL string to parse
  * @returns Hostname or the original URL if parsing fails

@@ -6,7 +6,7 @@ import { TermsPanel } from "./components/TermsPanel";
 import { DpaPanel } from "./components/DpaPanel";
 import { DpiaPanel } from "./components/DpiaPanel";
 import { RopaPanel } from "./components/RopaPanel";
-import { countBy, parseUrlHostname, parseUrlHost } from "./utils";
+import { countBy, parseUrlHostname, parseUrlHost, formatStatusLabel } from "./utils";
 import { MODULE_LABELS, ERROR_HINTS, LOADING_MESSAGES, OUTPUT_DESCRIPTIONS } from "./constants";
 
 type ReviewSelection = {
@@ -79,12 +79,12 @@ const SESSIONS_KEY = "legal_scout_sessions";
 const SESSIONS_VERSION = 1;
 
 
-function getThresholdStatusLabel(item: DpiaThresholdItem) {
-  return item.status.replace(/_/g, " ");
+function getChecklistStatusLabel(item: DpaChecklistItem) {
+  return formatStatusLabel(item.status);
 }
 
-function getChecklistStatusLabel(item: DpaChecklistItem) {
-  return item.status.replace("_", " ");
+function getThresholdStatusLabel(item: DpiaThresholdItem) {
+  return formatStatusLabel(item.status);
 }
 
 function getSupportingLinkHref(link: string, preview?: LinkPreview | null) {
