@@ -457,12 +457,6 @@ export default function App() {
         }
       }
 
-      if (activeRequestIdRef.current !== requestId) {
-        return;
-      }
-
-      setResults(nextResults);
-
       const savedTab: ResultTab = nextResults.terms ? "terms" : nextResults.dpa ? "dpa" : nextResults.dpia ? "dpia" : "ropa";
       setSessions((prev) =>
         prev.map((s) =>
@@ -472,20 +466,27 @@ export default function App() {
         )
       );
 
-      if (failures.length > 0) {
-        setError(failures.join(" "));
-      }
-    } catch (err) {
       if (activeRequestIdRef.current !== requestId) {
         return;
       }
 
-      setError(err instanceof Error ? err.message : "Unknown error.");
+      setResults(nextResults);
+
+      if (failures.length > 0) {
+        setError(failures.join(" "));
+      }
+    } catch (err) {
       setSessions((prev) =>
         prev.map((s) =>
           s.id === newId ? { ...s, status: "error" as SessionStatus } : s
         )
       );
+
+      if (activeRequestIdRef.current !== requestId) {
+        return;
+      }
+
+      setError(err instanceof Error ? err.message : "Unknown error.");
     } finally {
       if (activeRequestIdRef.current === requestId) {
         setLoading(false);
