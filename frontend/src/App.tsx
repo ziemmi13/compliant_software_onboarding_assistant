@@ -580,27 +580,6 @@ export default function App() {
   const availableTabs: ResultTab[] = [results.terms ? "terms" : null, results.dpa ? "dpa" : null, results.dpia ? "dpia" : null, results.ropa ? "ropa" : null].filter(Boolean) as ResultTab[];
   const visibleResultTab = availableTabs.includes(activeResultTab) ? activeResultTab : availableTabs[0] ?? "terms";
 
-  useEffect(() => {
-    if (results.ropa && !results.terms && !results.dpa && !results.dpia) {
-      setActiveResultTab("ropa");
-      return;
-    }
-
-    if (results.terms && !results.dpa && !results.dpia) {
-      setActiveResultTab("terms");
-      return;
-    }
-
-    if (results.dpa && !results.terms && !results.dpia) {
-      setActiveResultTab("dpa");
-      return;
-    }
-
-    if (results.dpia && !results.terms && !results.dpa && !results.ropa) {
-      setActiveResultTab("dpia");
-    }
-  }, [results.dpa, results.dpia, results.ropa, results.terms]);
-
 
 
 
