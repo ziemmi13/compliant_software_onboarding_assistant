@@ -39,7 +39,7 @@ export function NewVendorModal({
   return (
     <>
       <div className="modal-overlay" onClick={onClose} role="presentation" />
-      <div className="modal-dialog" role="alertdialog" aria-modal="true" aria-labelledby="modal-title">
+      <div className="modal-dialog" role="alertdialog" aria-modal="true" aria-labelledby="modal-title" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2 id="modal-title">New Vendor Analysis</h2>
           <button
