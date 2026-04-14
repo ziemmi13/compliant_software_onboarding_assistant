@@ -7,6 +7,7 @@ import { DpaPanel } from "./components/DpaPanel";
 import { DpiaPanel } from "./components/DpiaPanel";
 import { RopaPanel } from "./components/RopaPanel";
 import { countBy, parseUrlHostname, parseUrlHost } from "./utils";
+import { MODULE_LABELS, ERROR_HINTS, LOADING_MESSAGES, OUTPUT_DESCRIPTIONS } from "./constants";
 
 type ReviewSelection = {
   terms: boolean;
@@ -105,11 +106,11 @@ function hasAnySelection(selection: ReviewSelection) {
 
 function getSelectionLabel(selection: ReviewSelection) {
   const parts: string[] = [];
-  if (selection.terms) parts.push("T&C");
-  if (selection.dpa) parts.push("DPA");
-  if (selection.dpia) parts.push("DPIA");
-  if (selection.ropa) parts.push("ROPA");
-  return parts.join(" and ") || "T&C";
+  if (selection.terms) parts.push(MODULE_LABELS.terms);
+  if (selection.dpa) parts.push(MODULE_LABELS.dpa);
+  if (selection.dpia) parts.push(MODULE_LABELS.dpia);
+  if (selection.ropa) parts.push(MODULE_LABELS.ropa);
+  return parts.join(" and ") || MODULE_LABELS.terms;
 }
 
 function getTermsCoverageLabel(result: AnalyzeResponse) {
@@ -154,14 +155,8 @@ function hasRopaAnswer(result: RopaAnalyzeResponse) {
 }
 
 function formatModuleFailureMessage(kind: ResultTab, error: unknown) {
-  const moduleLabel = kind === "terms" ? "T&C" : kind === "dpa" ? "DPA" : kind === "dpia" ? "DPIA" : "ROPA";
-  const specificUrlHint = kind === "terms"
-    ? "a direct terms URL"
-    : kind === "dpa"
-      ? "a direct DPA URL"
-      : kind === "dpia"
-        ? "a direct privacy policy URL"
-        : "rerunning the DPA and DPIA review";
+  const moduleLabel = MODULE_LABELS[kind] || kind.toUpperCase();
+  const specificUrlHint = ERROR_HINTS[kind] || "try again";
 
   if (error instanceof ApiRequestError) {
     if (error.code === "invalid_url") {
@@ -197,6 +192,21 @@ function formatSessionDate(isoString: string): string {
   if (diffDays === 1) return "Yesterday";
   if (diffDays < 7) return `${diffDays} days ago`;
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function getLoadingMessage(selection: ReviewSelection): string {
+  if (selection.ropa) return LOADING_MESSAGES.ropa;
+  if (selection.dpia) return LOADING_MESSAGES.dpia;
+  if (selection.terms && selection.dpa) return LOADING_MESSAGES["terms-dpa"];
+  if (selection.dpa) return LOADING_MESSAGES.dpa;
+  return LOADING_MESSAGES.terms;
+}
+
+function getOutputDescription(selection: ReviewSelection): string {
+  if (selection.ropa) return OUTPUT_DESCRIPTIONS.ropa;
+  if (selection.terms && selection.dpa) return OUTPUT_DESCRIPTIONS["terms-dpa"];
+  if (selection.dpa) return OUTPUT_DESCRIPTIONS.dpa;
+  return OUTPUT_DESCRIPTIONS.terms;
 }
 
 export default function App() {
@@ -721,15 +731,7 @@ export default function App() {
               </div>
               <h1 className="review-mode-heading">{reviewModeTitle}</h1>
               <p className="review-mode-body">
-                {reviewSelection.ropa
-                  ? "COMPL.AI is running the DPA and DPIA reviews first, then synthesizing them into an Article 30 record of processing activities."
-                  : reviewSelection.dpia
-                  ? "COMPL.AI is screening the vendor's data processing against the WP29 threshold criteria and preparing a DPIA assessment."
-                  : reviewSelection.terms && reviewSelection.dpa
-                    ? "COMPL.AI is running both the contractual review and the DPA review before assembling the combined report."
-                    : reviewSelection.dpa
-                      ? "COMPL.AI is reviewing the DPA package and linked annexes before generating an Article 28 checklist."
-                      : "COMPL.AI is running a focused legal intake pass before generating the final summary and ranked highlights."}
+                {getLoadingMessage(reviewSelection)}
               </p>
 
               <div className="review-mode-notes">
@@ -739,15 +741,7 @@ export default function App() {
                 </article>
                 <article className="review-mode-note">
                   <strong>Output</strong>
-                  <p>
-                    {reviewSelection.ropa
-                      ? "Preparing a registry-style Article 30 record from the DPA checklist and DPIA findings."
-                      : reviewSelection.terms && reviewSelection.dpa
-                      ? "Preparing a combined report with ranked T&C issues and a cited DPA checklist."
-                      : reviewSelection.dpa
-                        ? "Preparing a structured Article 28 checklist with cited privacy control findings."
-                        : "Preparing a concise T&C report with ranked issues and linked source pages."}
-                  </p>
+                  <p>{getOutputDescription(reviewSelection)}</p>
                 </article>
                 <article className="review-mode-note">
                   <strong>Priority</strong>
